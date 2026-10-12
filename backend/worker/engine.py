@@ -360,8 +360,14 @@ class Worker:
         except ProviderRejected as rejection:
             with self.db.tx() as con:
                 con.execute(
-                    "UPDATE provider_attempts SET state='failed_provider',http_status=? WHERE id=?",
-                    (rejection.status, attempt["id"]),
+                    "UPDATE provider_attempts SET state='failed_provider',http_status=?,error_code=?,error_message=?,request_id=? WHERE id=?",
+                    (
+                        rejection.status,
+                        rejection.code,
+                        rejection.message,
+                        rejection.request_id,
+                        attempt["id"],
+                    ),
                 )
                 con.execute(
                     "UPDATE usage_ledger SET outcome='failed_provider',charge_status='rejected_unconfirmed',http_status=? WHERE attempt_id=?",

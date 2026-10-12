@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, bytes, money } from "./api";
 import type { Preferences, Snapshot, ProviderStatus } from "./types";
 import { defaultShortcuts, type Shortcuts } from "./types";
+import { NumberField } from "./NumberField";
 
 export function Backups({
   preferences,
@@ -210,14 +211,54 @@ export function Settings({
       </div>
       <section>
         <h2>ElevenLabs Scribe v2</h2>
-        <p>
-          Status:{" "}
-          <strong>
-            {provider?.status === "Configured"
-              ? "Configured · connection not tested"
-              : (provider?.status ?? "Loading")}
-          </strong>
-        </p>
+        <div className="provider-checks">
+          <div>
+            <span>Credential loaded</span>
+            <strong>
+              {provider
+                ? provider.key_configured
+                  ? "Yes"
+                  : "No"
+                : "Checking…"}
+            </strong>
+          </div>
+          <div>
+            <span>ElevenLabs connection</span>
+            <strong>
+              {provider?.http_status
+                ? "Reachable · HTTP " + provider.http_status
+                : "Not checked"}
+            </strong>
+          </div>
+          <div>
+            <span>Account access · optional</span>
+            <strong>
+              {provider?.status === "Configured"
+                ? "Not checked"
+                : (provider?.status ?? "Checking…")}
+            </strong>
+          </div>
+          <div>
+            <span>Last transcription request</span>
+            <strong>
+              {provider?.last_transcription
+                ? provider.last_transcription.state.replaceAll("_", " ") +
+                  (provider.last_transcription.diagnostic?.http_status
+                    ? " · HTTP " +
+                      provider.last_transcription.diagnostic.http_status
+                    : "")
+                : "Not tested"}
+            </strong>
+          </div>
+        </div>
+        {provider?.last_transcription?.diagnostic && (
+          <div className="provider-failure" role="status">
+            {provider.last_transcription.diagnostic.error_message && (
+              <p>{provider.last_transcription.diagnostic.error_message}</p>
+            )}
+            <p>{provider.last_transcription.diagnostic.help}</p>
+          </div>
+        )}
         {provider && (
           <p>
             Credential loaded:{" "}
@@ -232,13 +273,14 @@ export function Settings({
           worker containers.
         </p>
         <button disabled={busy} onClick={() => void checkProvider()}>
-          Test connection
+          {busy ? "Checking account access…" : "Check account access"}
         </button>
         <p className="hint">
-          This checks account access without sending audio. Enable Speech to
-          Text → Access for transcription. User → Access is optional for
-          connection and account usage checks; other endpoint permissions are
-          not needed.
+          This read-only check contacts ElevenLabs without sending audio. A
+          reachable service or connected account does not verify transcription.
+          Enable Speech to Text → Access for transcription. User → Access is
+          optional for connection and account usage checks; other endpoint
+          permissions are not needed.
         </p>
         <p>
           Audio is processed locally for preparation, then sent to ElevenLabs
@@ -248,47 +290,38 @@ export function Settings({
       <section>
         <h2>Playback and automatic backups</h2>
         <div className="form-grid">
-          <label>
-            Skip backward (seconds)
-            <input
-              type="number"
-              min="1"
-              max="60"
-              value={prefs.skip_seconds}
-              onChange={(e) =>
-                setPrefs({ ...prefs, skip_seconds: Number(e.target.value) })
-              }
-            />
-          </label>
-          <label>
-            Skip forward (seconds)
-            <input
-              type="number"
-              min="1"
-              max="60"
-              value={prefs.skip_forward_seconds ?? prefs.skip_seconds}
-              onChange={(e) =>
-                setPrefs({
-                  ...prefs,
-                  skip_forward_seconds: Number(e.target.value),
-                })
-              }
-            />
-          </label>
-          <label>
-            Automatic backup interval (hours)
-            <input
-              type="number"
-              min="1"
-              value={prefs.backup_interval_hours}
-              onChange={(e) =>
-                setPrefs({
-                  ...prefs,
-                  backup_interval_hours: Number(e.target.value),
-                })
-              }
-            />
-          </label>
+          <NumberField
+            label="Skip backward (seconds)"
+            min="1"
+            max="60"
+            value={prefs.skip_seconds}
+            onValueChange={(value) =>
+              setPrefs({ ...prefs, skip_seconds: Number(value) })
+            }
+          />
+          <NumberField
+            label="Skip forward (seconds)"
+            min="1"
+            max="60"
+            value={prefs.skip_forward_seconds ?? prefs.skip_seconds}
+            onValueChange={(value) =>
+              setPrefs({
+                ...prefs,
+                skip_forward_seconds: Number(value),
+              })
+            }
+          />
+          <NumberField
+            label="Automatic backup interval (hours)"
+            min="1"
+            value={prefs.backup_interval_hours}
+            onValueChange={(value) =>
+              setPrefs({
+                ...prefs,
+                backup_interval_hours: Number(value),
+              })
+            }
+          />
         </div>
         <h3>Keyboard shortcuts</h3>
         <div className="form-grid">
@@ -360,16 +393,13 @@ export function Settings({
           billing limit.
         </p>
         <div className="form-grid">
-          <label>
-            Monthly budget (leave blank for none)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={monthly}
-              onChange={(e) => setMonthly(e.target.value)}
-            />
-          </label>
+          <NumberField
+            label="Monthly budget (leave blank for none)"
+            min="0"
+            step="0.01"
+            value={monthly}
+            onValueChange={setMonthly}
+          />
           <label>
             Currency
             <input
@@ -411,25 +441,19 @@ export function Settings({
           Historical jobs retain their pricing version.
         </p>
         <div className="form-grid">
-          <label>
-            Base {currency} per audio hour
-            <input
-              type="number"
-              min="0"
-              step="0.000001"
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-            />
-          </label>
-          <label>
-            Keyterm surcharge (%)
-            <input
-              type="number"
-              min="0"
-              value={surcharge}
-              onChange={(e) => setSurcharge(Number(e.target.value))}
-            />
-          </label>
+          <NumberField
+            label={"Base " + currency + " per audio hour"}
+            min="0"
+            step="0.000001"
+            value={rate}
+            onValueChange={setRate}
+          />
+          <NumberField
+            label="Keyterm surcharge (%)"
+            min="0"
+            value={surcharge}
+            onValueChange={(value) => setSurcharge(Number(value))}
+          />
         </div>
         <label>
           Pricing source note

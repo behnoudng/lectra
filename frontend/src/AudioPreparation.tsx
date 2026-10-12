@@ -6,6 +6,8 @@ import Regions, {
 import Timeline from "wavesurfer.js/dist/plugins/timeline.esm.js";
 import Hover from "wavesurfer.js/dist/plugins/hover.esm.js";
 import { api, time } from "./api";
+import { Icon } from "./Icon";
+import { useAudioEffects } from "./useAudioEffects";
 import {
   preciseTime,
   parseAudioTime,
@@ -24,6 +26,23 @@ type Props = {
   onError: (message: string) => void;
 };
 type Audition = Span & { label: "selection" | "removed audio" };
+
+function selectionControls(onClose: () => void) {
+  const content = document.createElement("div");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "×";
+  button.setAttribute("part", "selection-close");
+  button.setAttribute("aria-label", "Clear waveform selection");
+  button.title = "Clear selection";
+  button.onpointerdown = (event) => event.stopPropagation();
+  button.onclick = (event) => {
+    event.stopPropagation();
+    onClose();
+  };
+  content.appendChild(button);
+  return content;
+}
 
 export function AudioPreparation({
   lecture,
@@ -48,6 +67,7 @@ export function AudioPreparation({
   const [redo, setRedo] = useState<Span[][]>([]);
   const [selection, setSelection] = useState({ start: "", end: "" });
   const [ready, setReady] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [zoom, setZoom] = useState(0);
@@ -55,6 +75,7 @@ export function AudioPreparation({
   const [peaks, setPeaks] = useState<number[]>([]);
   const [jump, setJump] = useState("");
   const [busy, setBusy] = useState(false);
+  const [previewBuilding, setPreviewBuilding] = useState(false);
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const [saved, setSaved] = useState(true);
@@ -68,7 +89,20 @@ export function AudioPreparation({
     denoise: true,
     loudness: true,
     ...lecture.preprocessing,
+    ...(!lecture.preprocessing.enabled
+      ? { highpass: false, denoise: false, loudness: false }
+      : {}),
   });
+  const monitoring = useAudioEffects(
+    wave,
+    loaded,
+    lecture.id,
+    source?.id,
+    sourceDuration,
+    peaks,
+    processing,
+    onError,
+  );
   const [preview, setPreview] = useState<{
     clean_id: string;
     enhanced_id: string;
@@ -111,7 +145,14 @@ export function AudioPreparation({
   }
   function toggle() {
     const w = wave.current;
-    if (!w || !ready || busy) return;
+    if (
+      !w ||
+      !ready ||
+      busy ||
+      monitoring.loading ||
+      monitoring.state === "failed"
+    )
+      return;
     if (w.isPlaying()) {
       stop();
       return;
@@ -130,7 +171,14 @@ export function AudioPreparation({
   }
   function previewRange(value: Span, label: Audition["label"]) {
     const w = wave.current;
-    if (!w || !ready || busy) return;
+    if (
+      !w ||
+      !ready ||
+      busy ||
+      monitoring.loading ||
+      monitoring.state === "failed"
+    )
+      return;
     if (
       w.isPlaying() &&
       auditionRef.current?.label === label &&
@@ -334,14 +382,21 @@ export function AudioPreparation({
       r.getRegions()
         .filter((old) => old.id === "selection" || old.id === "start-marker")
         .forEach((old) => old.remove());
-      region.setOptions({ id: "selection" });
+      region.setOptions({
+        id: "selection",
+        content: selectionControls(() => actions.current.clearSelection()),
+      });
       region.element?.setAttribute("data-kind", "selection");
+      if (region.element) region.element.style.height = "160px";
       readRegion(region);
     });
     r.on("region-update", readRegion);
     r.on("region-updated", readRegion);
     w.on("ready", () => {
-      if (!gone) setReady(true);
+      if (!gone) {
+        setReady(true);
+        setLoaded(true);
+      }
     });
     w.on("play", () => {
       if (!gone) setPlaying(w.isPlaying());
@@ -401,7 +456,8 @@ export function AudioPreparation({
       }
       if (at < next.start_ms) w.setTime(next.start_ms / 1000);
     });
-    w.on("error", () => {
+    w.on("error", (error) => {
+      if (error.name === "AbortError") return;
       if (!gone) {
         setReady(false);
         onError("Could not load the playback waveform.");
@@ -452,6 +508,7 @@ export function AudioPreparation({
             current.setOptions({ start: start / 1000, end: end / 1000 });
           current.setOptions({ drag: !busy, resize: !busy });
         } else {
+          const content = selectionControls(clearSelection);
           const region = r.addRegion({
             id: "selection",
             start: start / 1000,
@@ -460,8 +517,10 @@ export function AudioPreparation({
             minLength: 0.001,
             drag: !busy,
             resize: !busy,
+            content,
           });
           region.element?.setAttribute("data-kind", "selection");
+          if (region.element) region.element.style.height = "160px";
         }
       } else {
         current?.remove();
@@ -502,7 +561,7 @@ export function AudioPreparation({
           id: "removed-" + i,
           start: value.start_ms / 1000,
           end: value.end_ms / 1000,
-          color: "rgba(184,70,57,.15)",
+          color: "var(--cut-fill)",
           drag: false,
           resize: false,
           content: "Removed",
@@ -510,8 +569,10 @@ export function AudioPreparation({
         if (region.element) {
           region.element.setAttribute("data-kind", "removed");
           region.element.style.pointerEvents = "none";
+          region.element.style.height = "160px";
+          region.element.style.minWidth = "3px";
           region.element.style.backgroundImage =
-            "repeating-linear-gradient(135deg, transparent, transparent 6px, rgba(184,70,57,.12) 6px, rgba(184,70,57,.12) 8px)";
+            "repeating-linear-gradient(135deg, transparent, transparent 6px, rgba(184,70,57,.35) 6px, rgba(184,70,57,.35) 8px)";
         }
       }
     } finally {
@@ -581,6 +642,7 @@ export function AudioPreparation({
     }
   }
   async function buildPreview() {
+    setPreviewBuilding(true);
     try {
       await save();
       setBusy(true);
@@ -596,6 +658,7 @@ export function AudioPreparation({
       onError(String(error));
     } finally {
       setBusy(false);
+      setPreviewBuilding(false);
     }
   }
   function scrubOverview(element: HTMLElement, clientX: number) {
@@ -635,7 +698,11 @@ export function AudioPreparation({
     );
 
   return (
-    <section className="preparation">
+    <section
+      className="preparation"
+      data-monitor-state={monitoring.state}
+      data-monitor-source={monitoring.source}
+    >
       <div className="page-heading">
         <div>
           <p className="eyebrow">AUDIO PREPARATION</p>
@@ -664,11 +731,27 @@ export function AudioPreparation({
               className="primary audio-play"
               aria-label={playing ? "Pause audio" : "Play retained audio"}
               aria-pressed={playing}
-              disabled={!ready || busy}
+              aria-busy={monitoring.loading}
+              title={
+                monitoring.loading
+                  ? "Preparing audio effects"
+                  : playing
+                    ? "Pause"
+                    : "Play"
+              }
+              disabled={
+                !ready ||
+                busy ||
+                monitoring.loading ||
+                monitoring.state === "failed"
+              }
               onClick={toggle}
             >
-              <span aria-hidden="true">{playing ? "Ⅱ" : "▶"}</span>
-              {playing ? "Pause" : "Play"}
+              <Icon
+                name={
+                  monitoring.loading ? "loader" : playing ? "pause" : "play"
+                }
+              />
             </button>
             <button
               aria-label="Skip forward 5 seconds"
@@ -939,7 +1022,13 @@ export function AudioPreparation({
           </div>
           <div className="selection-actions">
             <button
-              disabled={!range || !ready || busy}
+              disabled={
+                !range ||
+                !ready ||
+                busy ||
+                monitoring.loading ||
+                monitoring.state === "failed"
+              }
               onClick={() => range && previewRange(range, "selection")}
             >
               {playing && audition === "selection"
@@ -1057,7 +1146,12 @@ export function AudioPreparation({
               </div>
               <button
                 aria-label={"Preview removed section " + (index + 1)}
-                disabled={!ready || busy}
+                disabled={
+                  !ready ||
+                  busy ||
+                  monitoring.loading ||
+                  monitoring.state === "failed"
+                }
                 onClick={() => previewRange(value, "removed audio")}
               >
                 Listen
@@ -1101,7 +1195,27 @@ export function AudioPreparation({
             checked={processing.enabled}
             disabled={busy}
             onChange={(event) => {
-              setProcessing({ ...processing, enabled: event.target.checked });
+              const enabled = event.target.checked;
+              const hasEffects =
+                processing.highpass ||
+                processing.denoise ||
+                processing.loudness;
+              setProcessing(
+                enabled
+                  ? {
+                      ...processing,
+                      enabled: true,
+                      ...(hasEffects
+                        ? {}
+                        : { highpass: true, denoise: true, loudness: true }),
+                    }
+                  : {
+                      enabled: false,
+                      highpass: false,
+                      denoise: false,
+                      loudness: false,
+                    },
+              );
               setSaved(false);
               setPreview(null);
             }}
@@ -1109,10 +1223,10 @@ export function AudioPreparation({
           Use enhanced audio for transcription
         </label>
         <p className="hint">
-          Optional high-pass filtering, light denoising, and loudness
-          normalization. Off by default.
+          Checked effects also play through the main player. Turn them off to
+          hear the original recording. Off by default.
         </p>
-        <div className="toolbar">
+        <div className="toolbar cleanup-options">
           {(["highpass", "denoise", "loudness"] as const).map((key) => (
             <label className="check" key={key}>
               <input
@@ -1120,17 +1234,43 @@ export function AudioPreparation({
                 checked={processing[key]}
                 disabled={busy}
                 onChange={(event) => {
-                  setProcessing({ ...processing, [key]: event.target.checked });
+                  const next = { ...processing, [key]: event.target.checked };
+                  next.enabled = next.highpass || next.denoise || next.loudness;
+                  setProcessing(next);
                   setSaved(false);
                   setPreview(null);
                 }}
               />
-              {key}
+              {key === "highpass"
+                ? "Remove low rumble"
+                : key === "denoise"
+                  ? "Reduce noise"
+                  : "Normalize loudness"}
             </label>
           ))}
         </div>
-        <button disabled={busy} onClick={() => void buildPreview()}>
-          Build clean / enhanced A/B preview
+        <p className={"effects-status " + monitoring.state} role="status">
+          {monitoring.loading && <Icon name="loader" />}
+          {monitoring.loading
+            ? "Preparing audio with your effects… This may take a moment for a long recording."
+            : monitoring.state === "enhanced"
+              ? "Effects are ready and active in the main player."
+              : monitoring.state === "failed"
+                ? "Effects could not be prepared."
+                : "The main player uses the original audio."}
+          {monitoring.state === "failed" && (
+            <button onClick={monitoring.retry}>Retry effects</button>
+          )}
+        </p>
+        <button
+          disabled={busy}
+          aria-busy={previewBuilding}
+          onClick={() => void buildPreview()}
+        >
+          {previewBuilding && <Icon name="loader" />}
+          {previewBuilding
+            ? "Preparing comparison…"
+            : "Build clean / enhanced A/B preview"}
         </button>
         {preview && (
           <div className="ab-preview">
@@ -1166,7 +1306,13 @@ export function AudioPreparation({
       </div>
       <div className="page-actions">
         <span className="hint">
-          {saved ? "Preparation saved" : "Unsaved preparation"}
+          {busy
+            ? previewBuilding
+              ? "Preparing comparison…"
+              : "Saving preparation…"
+            : saved
+              ? "Preparation saved"
+              : "Unsaved preparation"}
         </span>
         <button disabled={busy} onClick={() => void save().catch(() => {})}>
           Save preparation

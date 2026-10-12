@@ -106,6 +106,54 @@ export function QueueView({
                 </span>
               ))}
             </div>
+            {job.chunks
+              .filter((chunk) => chunk.state === "failed_provider")
+              .map((chunk) => {
+                const attempt = job.attempts
+                  .filter((a) => a.chunk_id === chunk.id)
+                  .at(-1);
+                const diagnostic = attempt?.diagnostic;
+                return (
+                  <div
+                    className="provider-failure"
+                    role="status"
+                    key={chunk.id}
+                  >
+                    <strong>
+                      Chunk {chunk.ordinal + 1}: ElevenLabs rejected the
+                      transcription
+                      {attempt?.http_status
+                        ? " · HTTP " + attempt.http_status
+                        : ""}
+                    </strong>
+                    {diagnostic?.error_code && (
+                      <span className="provider-error-code">
+                        {diagnostic.error_code}
+                      </span>
+                    )}
+                    {diagnostic?.error_message && (
+                      <p>{diagnostic.error_message}</p>
+                    )}
+                    <p>
+                      {diagnostic?.help ??
+                        "Check Speech to Text access, key expiration and credit limits before reviewing a retry."}
+                    </p>
+                    {!diagnostic?.error_message && (
+                      <p className="hint">
+                        This older attempt did not retain the provider's
+                        message. Its HTTP status and billing evidence remain
+                        available.
+                      </p>
+                    )}
+                    {diagnostic?.request_id && (
+                      <p className="hint">
+                        ElevenLabs request ID:{" "}
+                        <code>{diagnostic.request_id}</code>
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             {(job.state === "unknown_outcome" ||
               job.state === "needs_retry_approval") && (
               <div className="notice warning">
@@ -188,6 +236,13 @@ export function QueueView({
                       {money(a.estimated_cost, a.currency)} estimate
                     </p>
                     <code>{a.id}</code>
+                    {a.http_status && (
+                      <p className="hint">
+                        HTTP {a.http_status}
+                        {a.error_code ? " · " + a.error_code : ""}
+                        {a.error_message ? " · " + a.error_message : ""}
+                      </p>
+                    )}
                     <p className="hint">
                       Audio SHA-256: <bdi>{a.audio_sha256}</bdi>
                       <br />

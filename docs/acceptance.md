@@ -42,6 +42,31 @@ preview, visible cuts, undo/redo, and durable save with an unchanged original
 hash. Validation containers were stopped afterward. No live paid provider
 request was made.
 
+The subsequent 2026-10-12 diagnostics and UI refinement passed **99 backend
+tests** (including the real two-hour media run) and **23 browser tests**. The
+new evidence covers HTTP 401 permission/quota/credential reasons, safe redaction
+and bounded malformed-error fallback, recorded request IDs, no automatic
+resubmission, and an older-schema backup restored without losing newer error
+or billing evidence. The account check and last transcription outcome are
+displayed independently. Browser media-play instrumentation confirmed that
+checked effects use the processed file in the main transport, preserve source
+time, and have loading, failure, and retry states. Graphical selection dismissal,
+opaque red cut bands, numeric bounds/decimal stepping and persistence, optional
+speaker fields, both themes, and mobile dialog layout passed. Original audio
+hashes remain unchanged. Production builds and Ruff/format checks passed.
+Chromium against the production Nginx/API/worker stack verified migration of
+existing data, selection dismissal, effects in the main player, precise preview,
+red cuts, undo/redo, durable save, credential/transcription status separation,
+and numeric stepping. Validation services were stopped afterward.
+
+The Scribe v2 endpoint, fields, language/speaker limits, and repeated keyterms
+were checked against the current official generated Python SDK documentation
+and multipart adapter. The documentation website was unavailable from this
+workspace; the official SDK reference and source were fetched from GitHub.
+HTTP 401 alone does not identify the user's original rejection reason, and the
+old app discarded its response body. New attempts retain safe diagnostics.
+No live paid provider request was made.
+
 ## Specification coverage
 
 The numbers below refer to the 72 acceptance requirements in section 38.

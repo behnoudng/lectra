@@ -51,6 +51,12 @@ def verify_local_filesystem(path: Path):
         )
 
 
+def migrate_database(path):
+    config = AlembicConfig(str(Path(__file__).parents[1] / "alembic.ini"))
+    config.attributes["db_path"] = str(path)
+    command.upgrade(config, "head")
+
+
 class Database:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -106,9 +112,7 @@ class Database:
         ):
             recover_restore(self.cfg)
             with lock(self.cfg.data / "bootstrap.lock"):
-                config = AlembicConfig(str(Path(__file__).parents[1] / "alembic.ini"))
-                config.attributes["db_path"] = str(self.cfg.db_path)
-                command.upgrade(config, "head")
+                migrate_database(self.cfg.db_path)
                 with self.read() as con:
                     con.execute("PRAGMA journal_mode=WAL")
                     if (

@@ -73,6 +73,21 @@ class Vendor(BaseHTTPRequestHandler):
         if state["mode"] == "drop":
             self.connection.shutdown(socket.SHUT_RDWR)
             self.connection.close()
+        elif state["mode"] == "quota_rejected":
+            self.send_response(401)
+            self.send_header("request-id", "e2e-quota-request-123")
+            self.end_headers()
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "detail": {
+                            "status": "quota_exceeded",
+                            "message": "The key's credit limit was exceeded. Sentinel "
+                            + os.environ["ELEVENLABS_API_KEY"],
+                        }
+                    }
+                ).encode()
+            )
         else:
             time.sleep(0.2)
             self.send_response(200)

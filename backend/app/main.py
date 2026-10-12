@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from .config import settings, Config
 from .db import Database, now
 from .errors import AppError
+from .provider_errors import attempt_diagnostic
 from .storage import uid, safe_path, canonical, lock
 from .contracts import (
     CourseInput,
@@ -236,16 +237,36 @@ def create_app(cfg: Config | None = None):
     @app.get("/api/v1/provider/status")
     def provider_status():
         configured = bool(os.getenv("ELEVENLABS_API_KEY"))
-        return {
-            "status": "Configured" if configured else "Not configured",
-            "credential_source": "ELEVENLABS_API_KEY environment variable",
-            "key_configured": configured,
-            "transcription_verified": False,
-        }
+        return with_transcription_status(
+            {
+                "status": "Configured" if configured else "Not configured",
+                "credential_source": "ELEVENLABS_API_KEY environment variable",
+                "key_configured": configured,
+                "transcription_verified": False,
+            }
+        )
+
+    def with_transcription_status(result):
+        latest = db.one(
+            "SELECT * FROM provider_attempts ORDER BY created_at DESC,attempt_no DESC LIMIT 1",
+            required=False,
+        )
+        result["last_transcription"] = (
+            {
+                "state": latest["state"],
+                "created_at": latest["created_at"],
+                "diagnostic": attempt_diagnostic(latest)
+                if latest["state"] == "failed_provider"
+                else None,
+            }
+            if latest
+            else None
+        )
+        return result
 
     @app.post("/api/v1/provider/test")
     def provider_test():
-        return ElevenLabs(cfg.provider_url).account()
+        return with_transcription_status(ElevenLabs(cfg.provider_url).account())
 
     @app.get("/api/v1/provider/subscription")
     def subscription():
@@ -451,6 +472,25 @@ def create_app(cfg: Config | None = None):
                 db, lecture_id, lecture["edl"], {**data.model_dump(), "enabled": True}
             ),
             "duration_ms": lecture["duration_ms"],
+        }
+
+    @app.post("/api/v1/lectures/{lecture_id}/monitor-preview")
+    def monitor_preview(lecture_id: str, data: Preprocessing):
+        library.lecture(lecture_id)
+        source = db.one(
+            "SELECT * FROM media_assets WHERE lecture_id=? AND kind IN ('original','proxy') AND deleted_at IS NULL ORDER BY CASE kind WHEN 'original' THEN 0 ELSE 1 END LIMIT 1",
+            (lecture_id,),
+        )
+        # Keep recording times intact: monitoring applies effects to the source,
+        # while the player skips the retained-span gaps separately.
+        return {
+            "id": media.preview(
+                db,
+                lecture_id,
+                [{"start_ms": 0, "end_ms": source["duration_ms"]}],
+                {**data.model_dump(), "enabled": True},
+            ),
+            "duration_ms": source["duration_ms"],
         }
 
     @app.post("/api/v1/jobs/estimate")

@@ -5,7 +5,7 @@ import os
 import shutil
 import sqlite3
 from uuid import UUID
-from .db import now
+from .db import now, migrate_database
 from .errors import AppError
 from .storage import (
     atomic_bytes,
@@ -284,6 +284,8 @@ class BackupService:
                     "pricing_rules",
                 ]
             }
+        # Older snapshots must gain new columns before newer evidence is merged.
+        migrate_database(stage / "db/app.sqlite3")
         con = sqlite3.connect(stage / "db/app.sqlite3")
         con.row_factory = sqlite3.Row
         con.execute("PRAGMA foreign_keys=ON")

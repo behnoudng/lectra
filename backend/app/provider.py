@@ -9,6 +9,7 @@ import os
 import httpx
 from .contracts import TranscriptionSettings
 from .errors import AppError
+from .provider_errors import safe_text, safe_identifier
 
 
 @dataclass(frozen=True)
@@ -35,9 +36,49 @@ class ProviderResponse:
 
 
 class ProviderRejected(Exception):
-    def __init__(self, status):
+    def __init__(self, status, code=None, message=None, request_id=None):
         self.status = status
-        super().__init__("Provider explicitly rejected the request.")
+        self.code = safe_identifier(code)
+        self.message = (
+            safe_text(message) or "ElevenLabs rejected the transcription request."
+        )
+        self.request_id = safe_identifier(request_id)
+        super().__init__(self.message)
+
+    @classmethod
+    def from_response(cls, response):
+        code, message = None, None
+        try:
+            body = response.json() if len(response.content) <= 65536 else {}
+            detail = body.get("detail") if isinstance(body, dict) else None
+            if isinstance(detail, dict):
+                code, message = (
+                    detail.get("status") or detail.get("code"),
+                    detail.get("message"),
+                )
+            elif isinstance(detail, str):
+                message = detail
+            elif isinstance(detail, list):
+                code = "validation_error"
+                issues = []
+                for item in detail[:3]:
+                    if isinstance(item, dict) and isinstance(item.get("msg"), str):
+                        loc = item.get("loc", [])
+                        field = (
+                            ".".join(str(part) for part in loc[:4])
+                            if isinstance(loc, list)
+                            else "request"
+                        )
+                        issues.append(field + ": " + item["msg"])
+                message = "; ".join(issues)
+        except ValueError:
+            pass
+        return cls(
+            response.status_code,
+            code,
+            message,
+            response.headers.get("request-id") or response.headers.get("x-request-id"),
+        )
 
 
 class UnknownOutcome(Exception):
@@ -117,7 +158,7 @@ class ElevenLabs:
                 "Request may have been processed and billed."
             ) from None
         if 400 <= response.status_code < 500:
-            raise ProviderRejected(response.status_code)
+            raise ProviderRejected.from_response(response)
         if response.status_code != 200:
             raise UnknownOutcome(
                 "Unexpected provider response; billing outcome is uncertain."

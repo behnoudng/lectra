@@ -3,6 +3,7 @@ import hashlib
 from .contracts import JobInput
 from .db import now
 from .errors import AppError
+from .provider_errors import attempt_diagnostic
 from . import media, pricing
 from .storage import uid, canonical, safe_path
 
@@ -216,6 +217,9 @@ class QueueService:
             "SELECT a.*,u.estimated_cost,u.currency,u.charge_status,u.raw_response_sha256 FROM provider_attempts a JOIN usage_ledger u ON u.attempt_id=a.id WHERE a.job_id=? ORDER BY a.created_at",
             (job_id,),
         )
+        for attempt in job["attempts"]:
+            if attempt["state"] == "failed_provider":
+                attempt["diagnostic"] = attempt_diagnostic(attempt)
         job["transcript_id"] = (
             self.db.one(
                 "SELECT id FROM transcripts WHERE job_id=?", (job_id,), required=False

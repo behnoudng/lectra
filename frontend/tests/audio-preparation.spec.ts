@@ -126,6 +126,104 @@ test("exact playhead markers, preview, reversible cuts and saved recording times
   ).toBe(0);
 });
 
+test("checked effects play in the main transport, with progress and recoverable preview errors", async ({
+  page,
+  request,
+}) => {
+  await page.addInitScript(() => {
+    const original = HTMLMediaElement.prototype.play;
+    Object.defineProperty(window, "heardAudio", { value: [] });
+    HTMLMediaElement.prototype.play = function () {
+      (window as unknown as { heardAudio: string[] }).heardAudio.push(
+        this.currentSrc || this.src,
+      );
+      return original.call(this);
+    };
+  });
+  const title = "Main-player effects";
+  await prepare(page, title);
+  const before = await lecture(request, title);
+  await select(page, "1", "2");
+  await cut(page).click();
+  await jump(page, "2.25");
+  const response = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/monitor-preview") && r.request().method() === "POST",
+  );
+  await page.getByLabel("Reduce noise", { exact: true }).check();
+  await expect(page.locator(".effects-status")).toContainText(
+    "Preparing audio",
+  );
+  const effectsId = (await (await response).json()).id;
+  await expect(page.locator(".preparation")).toHaveAttribute(
+    "data-monitor-state",
+    "enhanced",
+  );
+  await expect(page.getByTestId("playhead-time")).toHaveText("00:02.250");
+  await page.getByRole("button", { name: "Play retained audio" }).click();
+  await expect(
+    page.getByRole("button", { name: "Pause audio" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const played = await page.evaluate(
+    () => (window as unknown as { heardAudio: string[] }).heardAudio,
+  );
+  expect(played.at(-1)).toContain("/api/v1/media/" + effectsId);
+  await page.getByRole("button", { name: "Pause audio" }).click();
+  await page.getByLabel("Reduce noise", { exact: true }).uncheck();
+  await expect(page.locator(".preparation")).toHaveAttribute(
+    "data-monitor-state",
+    "original",
+  );
+  await page.route("**/monitor-preview", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { category: "local_media", message: "Test preview failure." },
+      }),
+    }),
+  );
+  await page.getByLabel("Remove low rumble", { exact: true }).check();
+  await expect(page.locator(".preparation")).toHaveAttribute(
+    "data-monitor-state",
+    "failed",
+  );
+  await expect(
+    page.getByRole("button", { name: "Play retained audio" }),
+  ).toBeDisabled();
+  await page.unroute("**/monitor-preview");
+  await page
+    .getByRole("button", { name: "Retry effects", exact: true })
+    .click();
+  await expect(page.locator(".preparation")).toHaveAttribute(
+    "data-monitor-state",
+    "enhanced",
+  );
+  await page.getByRole("button", { name: "Dismiss message" }).click();
+  await select(page, "4.25", "5.75");
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({
+    path: "/tmp/lectra-refined-audio-dark.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.getByRole("button", { name: "Light mode", exact: true }).click();
+  await page.screenshot({
+    path: "/tmp/lectra-refined-audio-light.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  expect(
+    (await lecture(request, title)).media.find((a) => a.kind === "original")!
+      .sha256,
+  ).toBe(before.media.find((a) => a.kind === "original")!.sha256);
+  expect(
+    (await (await request.get("http://127.0.0.1:8121/test/stats")).json())
+      .posts,
+  ).toBe(0);
+});
+
 test("graphical drag and resize stay synchronized with precise fields and zoom", async ({
   page,
 }) => {
@@ -156,6 +254,11 @@ test("graphical drag and resize stay synchronized with precise fields and zoom",
   await page.mouse.up();
   await expect(page.getByLabel("Selection end")).not.toHaveValue(oldEnd);
   await expect(page.getByLabel("Selection start")).toHaveValue(oldStart);
+  await page
+    .getByRole("button", { name: "Clear waveform selection", exact: true })
+    .click();
+  await expect(selectionRegion(page)).toHaveCount(0);
+  await expect(page.getByLabel("Selection start")).toHaveValue("");
   await select(page, "00:01.125", "00:02.875");
   await expect(page.getByTestId("selection-duration")).toHaveText("00:01.750");
   const exact = (await selectionRegion(page).boundingBox())!;
@@ -266,9 +369,7 @@ test("invalid cuts are blocked; keyboard controls and small screens remain usabl
     path: "/tmp/lectra-audio-preparation-dark.png",
     fullPage: true,
   });
-  await page
-    .getByRole("button", { name: "☀ Light mode", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Light mode", exact: true }).click();
   await page.screenshot({
     path: "/tmp/lectra-audio-preparation-light.png",
     fullPage: true,

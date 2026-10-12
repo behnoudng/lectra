@@ -6,6 +6,7 @@ import { Review } from "./Review";
 import { QueueView } from "./QueueView";
 import { Backups, Settings } from "./SettingsBackups";
 import { LectureDialog, CourseDialog } from "./Dialogs";
+import { Icon, type IconName } from "./Icon";
 import type {
   Course,
   Lecture,
@@ -22,13 +23,13 @@ type Page =
   | "queue"
   | "backups"
   | "settings";
-const navigation: { id: Page; name: string; symbol: string }[] = [
-  { id: "library", name: "Library", symbol: "▤" },
-  { id: "audio", name: "Audio Preparation", symbol: "≋" },
-  { id: "editor", name: "Transcript Editor", symbol: "¶" },
-  { id: "queue", name: "Queue", symbol: "⇥" },
-  { id: "backups", name: "Backups", symbol: "↺" },
-  { id: "settings", name: "Settings", symbol: "⚙" },
+const navigation: { id: Page; name: string; icon: IconName }[] = [
+  { id: "library", name: "Library", icon: "library" },
+  { id: "audio", name: "Audio Preparation", icon: "audio" },
+  { id: "editor", name: "Transcript Editor", icon: "editor" },
+  { id: "queue", name: "Queue", icon: "queue" },
+  { id: "backups", name: "Backups", icon: "backups" },
+  { id: "settings", name: "Settings", icon: "settings" },
 ];
 const initialPreferences: Preferences = {
   backup_interval_hours: 24,
@@ -147,13 +148,19 @@ export default function App() {
                   ? "active "
                   : "") + (i === 3 ? "secondary-nav" : "")
               }
-              aria-current={page === item.id ? "page" : undefined}
+              aria-current={
+                page === item.id || (page === "review" && item.id === "audio")
+                  ? "page"
+                  : undefined
+              }
               disabled={
                 (item.id === "audio" || item.id === "editor") && !lecture
               }
               onClick={() => setPage(item.id)}
             >
-              <span aria-hidden="true">{item.symbol}</span>
+              <span className="nav-icon" aria-hidden="true">
+                <Icon name={item.icon} />
+              </span>
               {item.name}
               {item.id === "queue" && waiting > 0 && (
                 <b className="nav-count">{waiting}</b>
@@ -170,8 +177,17 @@ export default function App() {
             <br />
             you confirm transcription.
           </p>
-          <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? "☀ Light mode" : "☾ Dark mode"}
+          <button
+            className="theme-toggle"
+            title={
+              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+            }
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            <span className="theme-icon">
+              <Icon name={theme === "dark" ? "sun" : "moon"} />
+            </span>
+            <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
           </button>
         </div>
       </aside>

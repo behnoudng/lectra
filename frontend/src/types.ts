@@ -91,6 +91,18 @@ export type Attempt = {
   audio_sha256: string;
   response_persisted_at: string | null;
   retry_of_attempt_id: string | null;
+  http_status: number | null;
+  error_code: string | null;
+  error_message: string | null;
+  request_id: string | null;
+  diagnostic?: ProviderDiagnostic;
+};
+export type ProviderDiagnostic = {
+  http_status: number | null;
+  error_code: string | null;
+  error_message: string | null;
+  request_id: string | null;
+  help: string;
 };
 export type Chunk = {
   id: string;
@@ -123,6 +135,12 @@ export type ProviderStatus = {
   message?: string;
   reason?: string;
   subscription?: Record<string, unknown>;
+  http_status?: number;
+  last_transcription?: {
+    state: string;
+    created_at: string;
+    diagnostic: ProviderDiagnostic | null;
+  } | null;
 };
 export type Estimate = {
   review_hash: string;

@@ -25,7 +25,7 @@ Configuration:
 
 Use a **local Linux filesystem** for `APP_DATA_DIR`, not NFS/SMB/network mounts. The SQLite runtime refuses known unsafe versions, including 3.52.0, with a WAL-reset fix explanation. Foreign keys, WAL, `synchronous=FULL`, a busy timeout, migrations, integrity checks, and FTS5 are enabled.
 
-There is no API-key field in the UI. After changing the backend credential, run `docker compose up -d --force-recreate api worker`. In Settings, use **Test connection**; this performs a read-only account check. An absent key leaves local features usable and paid transcription disabled. Account usage is returned through an explicit safe field allowlist.
+There is no API-key field in the UI. After changing the backend credential, run `docker compose up -d --force-recreate api worker`. In Settings, use **Check account access**; this performs a read-only account check. Credential presence, server reachability, optional account access, and the last transcription result are shown separately. An absent key leaves local features usable and paid transcription disabled. Account usage is returned through an explicit safe field allowlist.
 
 ### ElevenLabs key permissions
 
@@ -43,6 +43,16 @@ connection never submits audio. Keep **Restrict Key** and **Auto-disable if leak
 enabled. The key's usage limit is in **credits**, not dollars: a cap of 3 credits
 can be insufficient for a lecture. Set a suitable credit cap using your account's
 current pricing and allowance.
+
+An HTTP **401** from `POST /v1/speech-to-text` can indicate a permission,
+credential, or credit-limit rejection. Queue errors show the saved HTTP status,
+bounded and redacted provider message/code, request ID, and guidance before a
+retry. Older attempts retain their HTTP status but their discarded response
+body cannot be recovered. A successful account check still does not verify
+speech access, and the app never sends paid audio as a connection test. The
+request contract was checked against ElevenLabs' current official
+[SDK API reference](https://github.com/elevenlabs/elevenlabs-python/blob/main/reference.md#speech-to-text)
+and [multipart adapter](https://github.com/elevenlabs/elevenlabs-python/blob/main/src/elevenlabs/speech_to_text/raw_client.py).
 
 Place `.env` beside `compose.yaml`, not in `backend/`. Compose reads this file
 without exporting it into your terminal, so an empty shell
@@ -63,7 +73,7 @@ locally; the worker reuses it and does not need a Docker Hub login.
 
 1. Create a course and enter reusable vocabulary/defaults, if useful.
 2. Import an audio or video recording with title, date, and tags. Uploads spool/stream, are hashed and probed, and produce a playback proxy and bounded waveform peaks.
-3. In Audio Preparation, drag across the waveform and adjust its handles, or enter exact start/end times in seconds (`743.5`), `mm:ss.mmm`, or `hh:mm:ss.mmm`. The live recording clock, timeline ruler, hover timestamp, overview navigator, and **Zoom to selection** help locate short sections in long lectures. Use **Preview selection**, then **Cut selection**. Removed sections stay shaded and can be listened to or restored individually; undo/redo and **Restore all audio** are also available. **Play** skips cuts. **Set start here / Set end here** (I/O), Space, arrow keys (Shift for 0.1 seconds), and Delete support keyboard editing outside input fields. Save preparation before leaving. The original remains unchanged. Optional conservative cleanup is off by default; clean/enhanced previews share the same edited time range.
+3. In Audio Preparation, drag across the waveform and adjust its handles, or enter exact start/end times in seconds (`743.5`), `mm:ss.mmm`, or `hh:mm:ss.mmm`. The live recording clock, timeline ruler, hover timestamp, overview navigator, and **Zoom to selection** help locate short sections in long lectures. Use **Preview selection**, then **Cut selection**. Removed audio is masked with solid red cut bands; tiny cuts remain visible as markers at low zoom. The **×** on a selection dismisses it. Removed sections can be listened to or restored individually; undo/redo and **Restore all audio** are also available. **Play** skips cuts. **Set start here / Set end here** (I/O), Space, arrow keys (Shift for 0.1 seconds), and Delete support keyboard editing outside input fields. Optional cleanup is off by default. Checking an effect prepares a local preview, shows progress, and applies it to the main player and transcription settings. Play once the effects are ready; failures offer a retry or can be cleared by switching effects off. The optional clean/enhanced A/B comparison shares the same edited time range. Save preparation before leaving. The original remains unchanged.
 4. Review the course, language (auto by default), speaker settings, keyterms, preprocessing, chunk count, usage, and cost warnings. **Confirm and enqueue** authorizes paid transcription. Changed cuts, settings, or pricing require a fresh review. Retry/cancel unfinished jobs first; resubmitting completed audio requires explicit retranscription approval.
 5. The worker sends one request at a time. Default chunks target 15 minutes, choose nearby silence, and cover the virtual timeline once without overlap. Whole-file mode has conservative local caps of ten hours and 1.9 GB of rendered PCM.
 6. Edit in audio-synced or document view. Both use the same blocks and rich text. Direction defaults to auto; per-block RTL/LTR changes presentation. Code spans isolate LTR content. Logical Unicode order is preserved.

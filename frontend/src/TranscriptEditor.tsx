@@ -11,6 +11,7 @@ import { $createParagraphNode } from "lexical";
 import { api, ApiError, time } from "./api";
 import { readDrafts, writeDraft, deleteDraft, type Draft } from "./drafts";
 import { RichBlock } from "./RichBlock";
+import { Icon } from "./Icon";
 import type { Block, Transcript, Preferences, Lecture } from "./types";
 import { defaultShortcuts } from "./types";
 
@@ -50,6 +51,7 @@ export function TranscriptEditor({
   const [duration, setDuration] = useState(lecture.duration_ms);
   const [mediaId, setMediaId] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
+  const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [follow, setFollow] = useState(true);
   const [loop, setLoop] = useState<{ start: number; end: number } | null>(null);
@@ -656,8 +658,13 @@ export function TranscriptEditor({
             >
               ← {preferences.skip_seconds}s
             </button>
-            <button className="primary" onClick={toggle}>
-              Play / pause
+            <button
+              className="primary audio-play"
+              aria-label={playing ? "Pause playback" : "Play playback"}
+              aria-pressed={playing}
+              onClick={toggle}
+            >
+              <Icon name={playing ? "pause" : "play"} />
             </button>
             <button
               onClick={() =>
@@ -713,6 +720,9 @@ export function TranscriptEditor({
         </div>
       )}
       <audio
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
         ref={audio}
         src={mediaId ? "/api/v1/media/" + mediaId : undefined}
         onLoadedMetadata={() => {

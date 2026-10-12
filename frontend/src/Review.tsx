@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, time, money } from "./api";
+import { NumberField } from "./NumberField";
 import {
   defaults,
   type Course,
@@ -183,21 +184,18 @@ export function Review({
                 <option value="whole">Whole file (advanced)</option>
               </select>
             </label>
-            <label>
-              Target chunk duration (minutes)
-              <input
-                type="number"
-                min="1"
-                max="60"
-                value={options.target_ms / 60000}
-                onChange={(e) =>
-                  setOptions({
-                    ...options,
-                    target_ms: Math.round(Number(e.target.value) * 60000),
-                  })
-                }
-              />
-            </label>
+            <NumberField
+              label="Target chunk duration (minutes)"
+              min="1"
+              max="60"
+              value={options.target_ms / 60000}
+              onValueChange={(value) =>
+                setOptions({
+                  ...options,
+                  target_ms: Math.round(Number(value) * 60000),
+                })
+              }
+            />
             <label>
               Transcription audio
               <select
@@ -232,23 +230,18 @@ export function Review({
             Label speakers (opt-in; identities are scoped to each chunk)
           </label>
           {options.diarize && (
-            <label>
-              Expected speaker count (optional)
-              <input
-                type="number"
-                min="1"
-                max="32"
-                value={options.num_speakers ?? ""}
-                onChange={(e) =>
-                  setOptions({
-                    ...options,
-                    num_speakers: e.target.value
-                      ? Number(e.target.value)
-                      : null,
-                  })
-                }
-              />
-            </label>
+            <NumberField
+              label="Expected speaker count (optional)"
+              min="1"
+              max="32"
+              value={options.num_speakers ?? ""}
+              onValueChange={(value) =>
+                setOptions({
+                  ...options,
+                  num_speakers: value ? Number(value) : null,
+                })
+              }
+            />
           )}
           <label className="check">
             <input

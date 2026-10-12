@@ -2,6 +2,7 @@ import { useDialog } from "./useDialog";
 import { useState, type FormEvent } from "react";
 import { api, upload } from "./api";
 import { defaults, type Course, type Lecture, type Options } from "./types";
+import { NumberField } from "./NumberField";
 export function LectureDialog({
   courses,
   existing,
@@ -291,21 +292,18 @@ export function CourseDialog({
           Default speaker labeling
         </label>
         {preset.diarize && (
-          <label>
-            Expected speakers
-            <input
-              type="number"
-              min="1"
-              max="32"
-              value={preset.num_speakers ?? ""}
-              onChange={(e) =>
-                setPreset({
-                  ...preset,
-                  num_speakers: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-            />
-          </label>
+          <NumberField
+            label="Expected speakers"
+            min="1"
+            max="32"
+            value={preset.num_speakers ?? ""}
+            onValueChange={(value) =>
+              setPreset({
+                ...preset,
+                num_speakers: value ? Number(value) : null,
+              })
+            }
+          />
         )}
         <label className="check">
           <input

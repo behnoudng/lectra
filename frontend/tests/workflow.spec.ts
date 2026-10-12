@@ -188,9 +188,7 @@ test("course defaults, vocabulary, theme and responsive navigation", async ({
   );
   await expect(page.getByLabel(/Use reviewed keyterms/)).toBeChecked();
   await page.getByRole("button", { name: "Library", exact: true }).click();
-  await page
-    .getByRole("button", { name: "☀ Light mode", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Light mode", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -787,15 +785,17 @@ test("Speech-to-Text-only keys keep account checks optional and never test with 
     await page.goto("/");
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page
-      .getByRole("button", { name: "Test connection", exact: true })
+      .getByRole("button", { name: "Check account access", exact: true })
       .click();
     await expect(page.getByRole("status")).toContainText(
       "optional account check requires User",
     );
     await expect(page.locator(".settings")).toContainText(
-      "Credential loaded: Yes",
+      "Credential loadedYes",
     );
-    await expect(page.locator(".settings")).toContainText("Status: Restricted");
+    await expect(page.locator(".provider-checks")).toContainText(
+      "Account access · optionalRestricted",
+    );
     expect(await page.locator("body").innerText()).not.toContain(
       "lectra-e2e-environment-sentinel",
     );
@@ -833,6 +833,61 @@ test("Speech-to-Text-only keys keep account checks optional and never test with 
   } finally {
     await request.post("http://127.0.0.1:8121/test/mode", {
       data: { account_mode: "connected" },
+    });
+  }
+});
+
+test("HTTP 401 rejection shows its redacted reason while account access is reported separately", async ({
+  page,
+  request,
+}) => {
+  const initial = (
+    await (await request.get("http://127.0.0.1:8121/test/stats")).json()
+  ).posts;
+  await request.post("http://127.0.0.1:8121/test/mode", {
+    data: { mode: "quota_rejected", account_mode: "connected" },
+  });
+  try {
+    const title = "Rejected credit-limit request";
+    await importLecture(page, title);
+    await page
+      .getByRole("button", { name: "Prepare audio →", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Review transcription →" }).click();
+    await page.getByRole("button", { name: "Confirm and enqueue" }).click();
+    const job = page.locator(".job").filter({ hasText: title });
+    await expect(job.locator(".provider-failure")).toContainText("HTTP 401");
+    await expect(job.locator(".provider-failure")).toContainText(
+      "quota_exceeded",
+    );
+    await expect(job.locator(".provider-failure")).toContainText(
+      "credit limit",
+    );
+    await expect(job.locator(".provider-failure")).toContainText("[redacted]");
+    expect(await page.locator("body").innerText()).not.toContain(
+      "lectra-e2e-environment-sentinel",
+    );
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Check account access", exact: true })
+      .click();
+    await expect(page.locator(".provider-checks")).toContainText("Connected");
+    await expect(page.locator(".provider-checks")).toContainText("HTTP 401");
+    await expect(page.locator(".settings .provider-failure")).toContainText(
+      "credit limit",
+    );
+    expect(
+      (await (await request.get("http://127.0.0.1:8121/test/stats")).json())
+        .posts,
+    ).toBe(initial + 1);
+    await page.screenshot({
+      path: "/tmp/lectra-provider-diagnostics.png",
+      fullPage: true,
+      animations: "disabled",
+    });
+  } finally {
+    await request.post("http://127.0.0.1:8121/test/mode", {
+      data: { mode: "success" },
     });
   }
 });
