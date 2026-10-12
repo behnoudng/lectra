@@ -772,3 +772,67 @@ test("a changed price requires a fresh preflight confirmation before sending aud
       .posts,
   ).toBe(initial + 1);
 });
+
+test("Speech-to-Text-only keys keep account checks optional and never test with paid audio", async ({
+  page,
+  request,
+}) => {
+  const initial = (
+    await (await request.get("http://127.0.0.1:8121/test/stats")).json()
+  ).posts;
+  await request.post("http://127.0.0.1:8121/test/mode", {
+    data: { account_mode: "restricted" },
+  });
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Test connection", exact: true })
+      .click();
+    await expect(page.getByRole("status")).toContainText(
+      "optional account check requires User",
+    );
+    await expect(page.locator(".settings")).toContainText(
+      "Credential loaded: Yes",
+    );
+    await expect(page.locator(".settings")).toContainText("Status: Restricted");
+    expect(await page.locator("body").innerText()).not.toContain(
+      "lectra-e2e-environment-sentinel",
+    );
+    expect(
+      (await (await request.get("http://127.0.0.1:8121/test/stats")).json())
+        .posts,
+    ).toBe(initial);
+    const title = "Restricted account permission fixture";
+    await importLecture(page, title);
+    await page
+      .getByRole("button", { name: "Prepare audio →", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Review transcription →" }).click();
+    await page
+      .getByRole("button", { name: "Check account status", exact: true })
+      .click();
+    await expect(page.locator(".cost-review")).toContainText(
+      "optional account check requires User",
+    );
+    expect(
+      (await (await request.get("http://127.0.0.1:8121/test/stats")).json())
+        .posts,
+    ).toBe(initial);
+    await expect(
+      page.getByRole("button", { name: "Confirm and enqueue" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Confirm and enqueue" }).click();
+    await expect(page.locator(".job").filter({ hasText: title })).toContainText(
+      "succeeded",
+    );
+    expect(
+      (await (await request.get("http://127.0.0.1:8121/test/stats")).json())
+        .posts,
+    ).toBe(initial + 1);
+  } finally {
+    await request.post("http://127.0.0.1:8121/test/mode", {
+      data: { account_mode: "connected" },
+    });
+  }
+});

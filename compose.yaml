@@ -11,6 +11,7 @@ services:
   api:
     build: ./backend
     image: lectra-backend:local
+    pull_policy: build
     environment:
       APP_DATA_DIR: /data
       BACKUP_DIR: /backups
@@ -27,6 +28,7 @@ services:
     restart: unless-stopped
   worker:
     image: lectra-backend:local
+    pull_policy: never
     command: ["python", "-m", "worker.main"]
     environment:
       APP_DATA_DIR: /data

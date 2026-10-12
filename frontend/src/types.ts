@@ -115,6 +115,15 @@ export type Job = {
   transcript_id: string | null;
 };
 export type Queue = { paused: boolean; jobs: Job[] };
+export type ProviderStatus = {
+  status: string;
+  credential_source: string;
+  key_configured: boolean;
+  transcription_verified: boolean;
+  message?: string;
+  reason?: string;
+  subscription?: Record<string, unknown>;
+};
 export type Estimate = {
   review_hash: string;
   duration_ms: number;

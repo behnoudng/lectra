@@ -16,6 +16,16 @@ adapter or a controllable local HTTP vendor server; no live paid request was mad
 - Native `scripts/dev.sh` was exercised with isolated data: API and Vite-proxied readiness, independent worker heartbeat, initial verified automatic backup, and coordinated shutdown.
 - A production backend container deliberately selecting system SQLite 3.40.1 failed readiness with HTTP 503 and an actionable WAL-reset explanation. The pinned image uses SQLite 3.53.1 and passed readiness.
 
+The 2026-10-12 restricted-key fix was checked separately with **22 targeted
+backend tests**, the complete **15-test browser suite**, strict TypeScript/Vite
+build, and Ruff. The browser case proves that account/subscription checks can
+return restricted while a separately approved transcription succeeds; no
+transcription POST occurs during either account check. A Compose startup with
+an absent backend image tag built it locally, started healthy services without
+a Docker Hub pull denial, and passed production health/credential-presence
+checks. Validation containers were stopped afterward. No live paid provider
+request was made.
+
 ## Specification coverage
 
 The numbers below refer to the 72 acceptance requirements in section 38.

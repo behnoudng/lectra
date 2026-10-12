@@ -166,10 +166,16 @@ class ElevenLabs:
 
     def account(self, subscription=False):
         key = os.getenv("ELEVENLABS_API_KEY")
+        result = {
+            "credential_source": "ELEVENLABS_API_KEY environment variable",
+            "key_configured": bool(key),
+            "transcription_verified": False,
+            "check_scope": "subscription" if subscription else "account",
+        }
         if not key:
-            return {
+            return result | {
                 "status": "Not configured",
-                "credential_source": "ELEVENLABS_API_KEY environment variable",
+                "message": "No key is loaded. Set ELEVENLABS_API_KEY in the project .env next to compose.yaml and recreate API and worker containers.",
             }
         try:
             r = self.client.get(
@@ -178,16 +184,44 @@ class ElevenLabs:
                 headers={"xi-api-key": key},
                 timeout=20,
             )
-            status = (
-                "Connected"
-                if r.status_code == 200
-                else ("Invalid" if r.status_code in (401, 403) else "Unavailable")
+            result["http_status"] = r.status_code
+            if r.status_code != 200:
+                # A restricted key can get HTTP 401 with missing_permissions.
+                # Inspect only a known status code, never expose the remote body.
+                try:
+                    body = r.json()
+                    detail = body.get("detail", {}) if isinstance(body, dict) else {}
+                    code = detail.get("status") if isinstance(detail, dict) else None
+                except ValueError:
+                    code = None
+                if r.status_code in (401, 403) and code == "missing_permissions":
+                    return result | {
+                        "status": "Restricted",
+                        "reason": "missing_permissions",
+                        "message": "A key is loaded, but this optional account check requires User → Access. A Speech-to-Text-only key may still transcribe with Speech to Text → Access. This check does not test transcription permission.",
+                    }
+                if r.status_code in (401, 403) and code == "invalid_api_key":
+                    return result | {
+                        "status": "Invalid",
+                        "reason": "invalid_api_key",
+                        "message": "ElevenLabs reports an invalid API key. Check the project .env and recreate API and worker containers after correcting it.",
+                    }
+                if r.status_code in (401, 403):
+                    return result | {
+                        "status": "Unauthorized"
+                        if r.status_code == 401
+                        else "Access denied",
+                        "message": "The account check was denied. Check User → Access, key restrictions and expiration. This response does not establish whether Speech to Text is authorized.",
+                    }
+                return result | {
+                    "status": "Unavailable",
+                    "message": "The read-only account check is unavailable. No transcription request was sent.",
+                }
+            result.update(
+                status="Connected",
+                message="Account access is connected. Speech to Text → Access is required separately; this read-only check has not verified transcription permission.",
             )
-            result = {
-                "status": status,
-                "credential_source": "ELEVENLABS_API_KEY environment variable",
-            }
-            if subscription and status == "Connected":
+            if subscription:
                 data = r.json()
                 # Explicit allowlist. Never return the raw account response.
                 safe = {}
@@ -205,7 +239,7 @@ class ElevenLabs:
                 result["subscription"] = safe
             return result
         except (httpx.HTTPError, ValueError):
-            return {
+            return result | {
                 "status": "Unavailable",
-                "credential_source": "ELEVENLABS_API_KEY environment variable",
+                "message": "The read-only account check could not complete. Check connectivity; no transcription request was sent.",
             }

@@ -235,11 +235,12 @@ def create_app(cfg: Config | None = None):
 
     @app.get("/api/v1/provider/status")
     def provider_status():
+        configured = bool(os.getenv("ELEVENLABS_API_KEY"))
         return {
-            "status": "Configured"
-            if os.getenv("ELEVENLABS_API_KEY")
-            else "Not configured",
+            "status": "Configured" if configured else "Not configured",
             "credential_source": "ELEVENLABS_API_KEY environment variable",
+            "key_configured": configured,
+            "transcription_verified": False,
         }
 
     @app.post("/api/v1/provider/test")

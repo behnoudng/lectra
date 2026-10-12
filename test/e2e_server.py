@@ -20,7 +20,13 @@ from worker.engine import Worker
 import httpx
 import uvicorn
 
-state = {"posts": 0, "mode": "success", "active": 0, "max_active": 0}
+state = {
+    "posts": 0,
+    "mode": "success",
+    "active": 0,
+    "max_active": 0,
+    "account_mode": "connected",
+}
 
 
 class Vendor(BaseHTTPRequestHandler):
@@ -28,12 +34,23 @@ class Vendor(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        self.send_response(200)
+        restricted = (
+            self.path != "/test/stats" and state["account_mode"] == "restricted"
+        )
+        self.send_response(401 if restricted else 200)
         self.end_headers()
         self.wfile.write(
             json.dumps(
                 state
                 if self.path == "/test/stats"
+                else {
+                    "detail": {
+                        "status": "missing_permissions",
+                        "message": "Test upstream sentinel: "
+                        + os.environ["ELEVENLABS_API_KEY"],
+                    }
+                }
+                if restricted
                 else {"tier": "test", "character_count": 0, "character_limit": 100}
             ).encode()
         )
@@ -41,7 +58,11 @@ class Vendor(BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("content-length", 0)))
         if self.path == "/test/mode":
-            state["mode"] = json.loads(body)["mode"]
+            options = json.loads(body)
+            if "mode" in options:
+                state["mode"] = options["mode"]
+            if "account_mode" in options:
+                state["account_mode"] = options["account_mode"]
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"{}")

@@ -6,6 +6,7 @@ import {
   type Lecture,
   type Options,
   type Estimate,
+  type ProviderStatus,
 } from "./types";
 export function Review({
   lecture,
@@ -43,10 +44,7 @@ export function Review({
   const [busy, setBusy] = useState(false);
   const [savePreset, setSavePreset] = useState(false);
   const [retranscribe, setRetranscribe] = useState(false);
-  const [account, setAccount] = useState<{
-    status: string;
-    subscription?: Record<string, unknown>;
-  } | null>(null);
+  const [account, setAccount] = useState<ProviderStatus | null>(null);
   useEffect(() => {
     let cancelled = false;
     setEstimate(null);
@@ -346,10 +344,7 @@ export function Review({
           ))}
           <button
             onClick={() =>
-              void api<{
-                status: string;
-                subscription?: Record<string, unknown>;
-              }>("/provider/subscription")
+              void api<ProviderStatus>("/provider/subscription")
                 .then(setAccount)
                 .catch((e) => onError(String(e)))
             }
@@ -378,6 +373,7 @@ export function Review({
                 )}
             </p>
           )}
+          {account?.message && <p className="hint">{account.message}</p>}
           {!configured && (
             <p className="notice warning">
               Transcription is disabled. Set ELEVENLABS_API_KEY in the backend

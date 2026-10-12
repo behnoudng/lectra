@@ -27,6 +27,38 @@ Use a **local Linux filesystem** for `APP_DATA_DIR`, not NFS/SMB/network mounts.
 
 There is no API-key field in the UI. After changing the backend credential, run `docker compose up -d --force-recreate api worker`. In Settings, use **Test connection**; this performs a read-only account check. An absent key leaves local features usable and paid transcription disabled. Account usage is returned through an explicit safe field allowlist.
 
+### ElevenLabs key permissions
+
+| Key editor setting | Lectra needs it for |
+| --- | --- |
+| **Speech to Text → Access** | Required for Scribe transcription |
+| **User → Access** | Optional read-only connection and subscription/usage checks |
+| All other shown endpoint permissions | Leave at **No Access** |
+
+The account checks call `GET /v1/user` and `GET /v1/user/subscription`.
+ElevenLabs can return HTTP 401 with `missing_permissions` for a valid restricted
+key; Lectra displays **Restricted**, rather than declaring that key invalid.
+A successful account check does not verify Speech-to-Text permission. Testing
+connection never submits audio. Keep **Restrict Key** and **Auto-disable if leaked**
+enabled. The key's usage limit is in **credits**, not dollars: a cap of 3 credits
+can be insufficient for a lecture. Set a suitable credit cap using your account's
+current pricing and allowance.
+
+Place `.env` beside `compose.yaml`, not in `backend/`. Compose reads this file
+without exporting it into your terminal, so an empty shell
+`echo $ELEVENLABS_API_KEY` does not establish that the containers lack the key.
+Check presence without printing it:
+
+```bash
+docker compose exec -T api python -c 'import os; print("API key loaded:", bool(os.getenv("ELEVENLABS_API_KEY")))'
+docker compose exec -T worker python -c 'import os; print("Worker key loaded:", bool(os.getenv("ELEVENLABS_API_KEY")))'
+```
+
+If either is false, correct the project `.env` and recreate both services.
+An exported shell variable takes precedence over `.env`; unset an empty shell
+`ELEVENLABS_API_KEY` when you intend to use the file. The backend image is built
+locally; the worker reuses it and does not need a Docker Hub login.
+
 ## First lecture
 
 1. Create a course and enter reusable vocabulary/defaults, if useful.

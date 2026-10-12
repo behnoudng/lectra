@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, bytes, money } from "./api";
-import type { Preferences, Snapshot } from "./types";
+import type { Preferences, Snapshot, ProviderStatus } from "./types";
 import { defaultShortcuts, type Shortcuts } from "./types";
 
 export function Backups({
@@ -151,10 +151,7 @@ export function Settings({
   onError: (message: string) => void;
 }) {
   const [prefs, setPrefs] = useState(preferences);
-  const [provider, setProvider] = useState<{
-    status: string;
-    credential_source: string;
-  } | null>(null);
+  const [provider, setProvider] = useState<ProviderStatus | null>(null);
   const [budget, setBudget] = useState<Budget | null>(null);
   const [monthly, setMonthly] = useState("");
   const [rate, setRate] = useState("");
@@ -164,7 +161,7 @@ export function Settings({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   useEffect(() => {
-    void api<{ status: string; credential_source: string }>("/provider/status")
+    void api<ProviderStatus>("/provider/status")
       .then(setProvider)
       .catch((e) => onError(String(e)));
     void api<Budget>("/budget")
@@ -191,6 +188,17 @@ export function Settings({
       setBusy(false);
     }
   }
+  async function checkProvider() {
+    setBusy(true);
+    setNotice("");
+    try {
+      setProvider(await api<ProviderStatus>("/provider/test", "POST"));
+    } catch (e) {
+      onError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section className="settings">
       <div className="page-heading">
@@ -210,21 +218,28 @@ export function Settings({
               : (provider?.status ?? "Loading")}
           </strong>
         </p>
+        {provider && (
+          <p>
+            Credential loaded:{" "}
+            <strong>{provider.key_configured ? "Yes" : "No"}</strong>
+          </p>
+        )}
+        {provider?.message && <p role="status">{provider.message}</p>}
         <p className="hint">
           Credential source: ELEVENLABS_API_KEY environment variable.
           <br />
-          Set it in your backend .env and recreate API and worker containers.
+          Set it in the project .env next to compose.yaml and recreate API and
+          worker containers.
         </p>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void action(async () =>
-              setProvider(await api("/provider/test", "POST")),
-            )
-          }
-        >
+        <button disabled={busy} onClick={() => void checkProvider()}>
           Test connection
         </button>
+        <p className="hint">
+          This checks account access without sending audio. Enable Speech to
+          Text → Access for transcription. User → Access is optional for
+          connection and account usage checks; other endpoint permissions are
+          not needed.
+        </p>
         <p>
           Audio is processed locally for preparation, then sent to ElevenLabs
           for transcription. This application is not fully offline.

@@ -14,6 +14,27 @@ The provider-neutral protocol returns raw bytes before normalization. Only the a
 
 Read-only connection and subscription checks use `/v1/user` and `/v1/user/subscription`. The API returns an explicit allowlist, never the complete account response or credentials. Test-only adapters and servers can be injected through Python constructors; production settings expose no alternative provider URL.
 
+### Restricted-key account checks
+
+Checked 2026-10-12 against the official SDK's
+[permission names](https://github.com/elevenlabs/elevenlabs-python/blob/fbe5daf0108133f2554fa6b0bb5edc943cefb941/src/elevenlabs/types/permission_type.py),
+[user endpoint](https://github.com/elevenlabs/elevenlabs-python/blob/fbe5daf0108133f2554fa6b0bb5edc943cefb941/src/elevenlabs/user/raw_client.py),
+and [subscription endpoint](https://github.com/elevenlabs/elevenlabs-python/blob/fbe5daf0108133f2554fa6b0bb5edc943cefb941/src/elevenlabs/user/subscription/raw_client.py).
+The public documentation/API hosts remain blocked by this runner's proxy;
+official GitHub references were retrieved successfully.
+
+`speech_to_text` (Speech to Text → Access) authorizes transcription.
+`user_read` (User → Access in the key editor) is needed for optional account
+reads. No other endpoint scopes are used by Lectra. An account check can return
+HTTP 401 or 403 with `detail.status=missing_permissions`; this is classified as
+Restricted. An explicit `invalid_api_key` is Invalid. Unspecified 401/403 errors
+remain Unauthorized/Access denied rather than assuming their cause.
+
+Responses expose only fixed explanatory messages, a known reason when present,
+credential presence, and `transcription_verified=false`; they never echo the
+remote error message/body or credential. Account success establishes account
+access only. No paid transcription is sent as a connectivity probe.
+
 ## SQLite
 
 The production image builds [official SQLite 3.53.1](https://github.com/sqlite/sqlite/tree/version-3.53.1), after the March 2026 WAL-reset correction. It verifies the source archive SHA-256:

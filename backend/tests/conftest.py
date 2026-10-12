@@ -118,7 +118,9 @@ def vendor(monkeypatch):
             self.send_response(status)
             self.end_headers()
             self.wfile.write(
-                b'{"tier":"test","character_count":10,"character_limit":100,"api_key":"must-not-return"}'
+                b'{"detail":{"status":"invalid_api_key"}}'
+                if status == 401
+                else b'{"tier":"test","character_count":10,"character_limit":100,"api_key":"must-not-return"}'
             )
 
         def do_POST(self):
