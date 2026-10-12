@@ -1,0 +1,31 @@
+{
+  "name": "lectra-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --strictPort",
+    "build": "tsc -b && vite build",
+    "test": "playwright test",
+    "format": "prettier --write src tests *.ts *.json"
+  },
+  "dependencies": {
+    "@lexical/react": "0.38.2",
+    "@lexical/rich-text": "0.38.2",
+    "@lexical/selection": "0.38.2",
+    "@lexical/utils": "0.38.2",
+    "lexical": "0.38.2",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "wavesurfer.js": "7.12.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "6.1.2",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  }
+}

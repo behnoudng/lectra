@@ -1,0 +1,48 @@
+name: lectra
+services:
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:${APP_PORT:-8787}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+  api:
+    build: ./backend
+    image: lectra-backend:local
+    environment:
+      APP_DATA_DIR: /data
+      BACKUP_DIR: /backups
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+    volumes:
+      - ${APP_DATA_DIR:-./data}:/data
+      - ${BACKUP_DIR:-./backups}:/backups
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+  worker:
+    image: lectra-backend:local
+    command: ["python", "-m", "worker.main"]
+    environment:
+      APP_DATA_DIR: /data
+      BACKUP_DIR: /backups
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+    volumes:
+      - ${APP_DATA_DIR:-./data}:/data
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from pathlib import Path; import time; assert time.time()-Path('/data/worker-heartbeat.json').stat().st_mtime<60"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    stop_grace_period: 31m
+    restart: unless-stopped
