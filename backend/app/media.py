@@ -250,9 +250,13 @@ def original(db, lecture_id):
 def peaks(db, asset):
     output = db.cfg.data / "waveform" / f"{asset['id']}.json"
     if output.exists():
-        return json.loads(output.read_text())
+        cached = json.loads(output.read_text())
+        if cached.get("version") == 2:
+            return cached
     path = safe_path(db.cfg.data, asset["path"])
-    samples_per_peak = max(1, math.ceil(asset["duration_ms"] / 1000 * 8000 / 5000))
+    # A two-hour lecture needs subsecond detail when zoomed in. Keep the
+    # response bounded and regenerate older, coarser caches on first use.
+    samples_per_peak = max(1, math.ceil(asset["duration_ms"] / 1000 * 8000 / 50000))
     proc = subprocess.Popen(
         [
             "ffmpeg",
@@ -286,7 +290,7 @@ def peaks(db, asset):
         if proc.poll() is None:
             proc.kill()
             proc.wait()
-    payload = {"peaks": values, "duration_ms": asset["duration_ms"]}
+    payload = {"version": 2, "peaks": values, "duration_ms": asset["duration_ms"]}
     atomic_bytes(output, canonical(payload).encode())
     return payload
 

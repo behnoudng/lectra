@@ -26,6 +26,22 @@ a Docker Hub pull denial, and passed production health/credential-presence
 checks. Validation containers were stopped afterward. No live paid provider
 request was made.
 
+The 2026-10-12 audio preparation update passed the full **88-test backend
+suite**, including the real two-hour FFmpeg pipeline, and the full **20-test
+Chromium browser suite**. Five new browser cases cover graphical selection and
+handle resizing, synchronized millisecond fields, playhead markers, preview
+endpoints after seeking, playback skipping cuts, auditioning different removed
+sections, undo/redo and restoration, durable source-time spans, invalid cuts,
+keyboard controls, mobile layout, and a real one-hour recording with a cut near
+the hour mark. Original hashes remain unchanged. Legacy waveform caches are
+upgraded to finer, bounded peak data and reused. Dark/light/mobile screenshots
+were inspected. Ruff, formatting checks, and the production TypeScript/Vite
+build passed. Both production Docker images were rebuilt; Chromium against the
+running Nginx/API/worker stack verified upload, precise clock, selection
+preview, visible cuts, undo/redo, and durable save with an unchanged original
+hash. Validation containers were stopped afterward. No live paid provider
+request was made.
+
 ## Specification coverage
 
 The numbers below refer to the 72 acceptance requirements in section 38.
@@ -33,7 +49,7 @@ The numbers below refer to the 72 acceptance requirements in section 38.
 | Requirements | Automated evidence |
 | --- | --- |
 | 1–4: topology, credential status and containment | `backend/tests/test_deployment.py`, `test_app.py`, `test_provider.py`; browser credential-storage test |
-| 5–9: original hash, cuts, previews, reversible timeline | `test_durability.py`, `test_long_lecture.py`; complete browser workflow |
+| 5–9: original hash, cuts, previews, reversible timeline | `test_durability.py`, `test_long_lecture.py`, `test_waveform.py`; `audio-preparation.spec.ts` and complete browser workflow |
 | 10–12: stable chunks, no overlap, full timeline | `test_durability.py`, `test_long_lecture.py` |
 | 13–17: five-job queue, single request, restart/order, pause/resume | `test_durability.py`, `test_processes.py`; counted browser vendor |
 | 18–27: FFmpeg/request/artifact interruption, no automatic POST, explicit retry | `test_processes.py` real SIGKILL cases; `test_durability.py` checkpoint cases; `test_provider.py` accepted-then-dropped connection/timeout/5xx/4xx cases; browser unknown-outcome test |

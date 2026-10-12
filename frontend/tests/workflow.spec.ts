@@ -72,12 +72,12 @@ test("complete upload, cuts, preflight, transcription, edits, search, export, ba
   await page
     .getByRole("button", { name: "Prepare audio →", exact: true })
     .click();
-  await page.getByLabel("Cut start (seconds)").fill("1");
-  await page.getByLabel("Cut end (seconds)").fill("2");
-  await page.getByRole("button", { name: "Remove selected range" }).click();
-  await page.getByLabel("Cut start (seconds)").fill("4");
-  await page.getByLabel("Cut end (seconds)").fill("5");
-  await page.getByRole("button", { name: "Remove selected range" }).click();
+  await page.getByLabel("Selection start").fill("1");
+  await page.getByLabel("Selection end").fill("2");
+  await page.getByRole("button", { name: /Cut selection/ }).click();
+  await page.getByLabel("Selection start").fill("4");
+  await page.getByLabel("Selection end").fill("5");
+  await page.getByRole("button", { name: /Cut selection/ }).click();
   await expect(page.locator(".ranges li")).toHaveCount(3);
   await page.getByRole("button", { name: "Undo cut" }).click();
   await expect(page.locator(".ranges li")).toHaveCount(2);
