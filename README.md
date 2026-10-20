@@ -1,6 +1,6 @@
 # Lectra
 
-A local Persian–English lecture transcription workstation. Import long recordings, make nondestructive cuts, review paid transcription settings, and correct a canonical transcript in audio-synced or document view. Preparation, editing, search, export, and backups run locally. Transcription sends audio to **ElevenLabs Scribe v2**.
+A local multi-language lecture transcription workstation. Import long recordings, make nondestructive cuts, review paid transcription settings, and correct a canonical transcript in audio-synced or document view. Preparation, editing, search, export, and backups run locally. Transcription sends audio to **ElevenLabs Scribe v2**.
 
 ## Run on Linux
 
