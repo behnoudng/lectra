@@ -1,6 +1,8 @@
+import { Select } from "./Select";
 import { useDialog } from "./useDialog";
-import { useState, type FormEvent } from "react";
-import { api, upload } from "./api";
+import { useRef, useState, type FormEvent } from "react";
+import { api, bytes, upload } from "./api";
+import { Icon } from "./Icon";
 import { defaults, type Course, type Lecture, type Options } from "./types";
 import { NumberField } from "./NumberField";
 export function LectureDialog({
@@ -23,6 +25,8 @@ export function LectureDialog({
   const [course, setCourse] = useState(existing?.course_id ?? "");
   const [tags, setTags] = useState(existing?.tags.join(", ") ?? "");
   const [file, setFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const dialog = useDialog<HTMLFormElement>(onClose, !busy);
@@ -105,14 +109,14 @@ export function LectureDialog({
         <div className="form-grid">
           <label>
             Course
-            <select value={course} onChange={(e) => setCourse(e.target.value)}>
+            <Select value={course} onValueChange={(value) => setCourse(value)}>
               <option value="">Unfiled</option>
               {courses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             Date
@@ -133,25 +137,70 @@ export function LectureDialog({
           />
         </label>
         {!existing && (
-          <label
-            className="file-drop"
-            onDragOver={(e) => e.preventDefault()}
+          <div
+            className={"file-drop" + (dragging ? " is-dragging" : "")}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (!busy) setDragging(true);
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                setDragging(false);
+            }}
             onDrop={(e) => {
               e.preventDefault();
-              choose(e.dataTransfer.files[0] ?? null);
+              setDragging(false);
+              if (!busy && e.dataTransfer.files[0])
+                choose(e.dataTransfer.files[0]);
             }}
           >
-            <strong>
+            <div className="upload-icon">
+              <Icon name="upload" />
+            </div>
+            <strong dir="auto">
               {file ? file.name : "Drop a lecture recording here"}
             </strong>
-            <span>or choose an audio / video file</span>
+            <span>
+              {file
+                ? bytes(file.size)
+                : "Audio or video · your original stays preserved"}
+            </span>
+            <div className="file-actions">
+              <button
+                type="button"
+                className="choose-recording"
+                disabled={busy}
+                onClick={() => fileInput.current?.click()}
+              >
+                <Icon name="upload" />
+                {file ? "Change recording" : "Choose recording"}
+              </button>
+              {file && (
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() => {
+                    choose(null);
+                    if (fileInput.current) fileInput.current.value = "";
+                  }}
+                >
+                  Remove file
+                </button>
+              )}
+            </div>
             <input
+              ref={fileInput}
+              hidden
               aria-label="Lecture recording"
               type="file"
+              disabled={busy}
               accept="audio/*,video/*"
-              onChange={(e) => choose(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                if (e.target.files?.[0]) choose(e.target.files[0]);
+              }}
             />
-          </label>
+          </div>
         )}
         {busy && (
           <div role="status">
@@ -266,16 +315,16 @@ export function CourseDialog({
         </label>
         <label>
           Default language
-          <select
+          <Select
             value={preset.language_code ?? ""}
-            onChange={(e) =>
-              setPreset({ ...preset, language_code: e.target.value || null })
+            onValueChange={(value) =>
+              setPreset({ ...preset, language_code: value || null })
             }
           >
             <option value="">Auto-detect</option>
             <option value="fas">Persian</option>
             <option value="eng">English</option>
-          </select>
+          </Select>
         </label>
         <label className="check">
           <input

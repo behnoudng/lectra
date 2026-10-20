@@ -47,6 +47,7 @@ export type Asset = {
 };
 export type Lecture = {
   id: string;
+  is_used: boolean;
   title: string;
   date: string;
   course_id: string | null;
@@ -187,6 +188,7 @@ export type Snapshot = {
 };
 export type SearchResult = {
   lecture_id: string;
+  is_used: boolean;
   block_id: string | null;
   start_ms: number | null;
   snippet: string;

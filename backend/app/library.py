@@ -67,6 +67,7 @@ class Library:
             (lecture_id,),
         )
         lecture["edl"] = json.loads(lecture["edl"])
+        lecture["is_used"] = bool(lecture["is_used"])
         lecture["preprocessing"] = json.loads(lecture["preprocessing"])
         lecture["tags"] = [
             r["name"]
@@ -147,6 +148,14 @@ class Library:
             )
             self._tags(con, lecture_id, data.tags)
             transcripts.index_lecture(con, lecture_id)
+        return self.lecture(lecture_id)
+
+    def set_usage(self, lecture_id, is_used):
+        self.lecture(lecture_id)
+        with self.db.tx() as con:
+            con.execute(
+                "UPDATE lectures SET is_used=? WHERE id=?", (is_used, lecture_id)
+            )
         return self.lecture(lecture_id)
 
     def save_edl(self, lecture_id, spans):

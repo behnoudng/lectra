@@ -103,9 +103,11 @@ def test_restore_of_old_schema_retains_new_rejection_evidence(db, job, provider)
     snapshot = root / "app.sqlite3"
     # Reproduce a valid pre-update snapshot, including its schema revision.
     with sqlite3.connect(snapshot) as con:
+        con.execute("ALTER TABLE lectures DROP COLUMN is_used")
         for column in ("error_code", "error_message", "request_id"):
             con.execute("ALTER TABLE provider_attempts DROP COLUMN " + column)
         con.execute("UPDATE alembic_version SET version_num='0001'")
+    con.close()
     info = json.loads((root / "snapshot.json").read_text())
     for file in info["files"]:
         if file["path"] == "app.sqlite3":
@@ -129,7 +131,7 @@ def test_restore_of_old_schema_retains_new_rejection_evidence(db, job, provider)
     failed = QueueService(db).job(job["id"])
     assert failed["attempts"][0]["error_code"] == "quota_exceeded"
     assert failed["attempts"][0]["request_id"] == "request-456"
-    assert db.one("SELECT version_num FROM alembic_version")["version_num"] == "0002"
+    assert db.one("SELECT version_num FROM alembic_version")["version_num"] == "0003"
     Worker(db, provider).reconcile()
     assert Worker(db, provider).step() is False
     assert provider.posts == 1

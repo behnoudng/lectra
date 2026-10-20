@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, time, bytes } from "./api";
 import { AudioPreparation } from "./AudioPreparation";
 import { TranscriptEditor } from "./TranscriptEditor";
@@ -7,6 +7,8 @@ import { QueueView } from "./QueueView";
 import { Backups, Settings } from "./SettingsBackups";
 import { LectureDialog, CourseDialog } from "./Dialogs";
 import { Icon, type IconName } from "./Icon";
+import { Select } from "./Select";
+import { LectureActions } from "./LectureActions";
 import type {
   Course,
   Lecture,
@@ -53,8 +55,23 @@ export default function App() {
   );
   const [courseFilter, setCourseFilter] = useState("");
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [results, setResults] = useState<{
+    key: string;
+    items: SearchResult[];
+  } | null>(null);
   const [tagFilter, setTagFilter] = useState("");
+  const [hideUsed, setHideUsed] = useState(false);
+  const [searchRevision, setSearchRevision] = useState(0);
+  const [savingUsage, setSavingUsage] = useState<Set<string>>(new Set());
+  const pendingUsage = useRef(new Set<string>());
+  const usageEpoch = useRef(0);
+  const searchKey = JSON.stringify([
+    query.trim(),
+    courseFilter,
+    tagFilter,
+    hideUsed,
+    searchRevision,
+  ]);
   const [uploadDialog, setUploadDialog] = useState(false);
   const [editLecture, setEditLecture] = useState<Lecture | null>(null);
   const [courseDialog, setCourseDialog] = useState<Course | "new" | null>(null);
@@ -63,6 +80,7 @@ export default function App() {
     [],
   );
   const refresh = useCallback(async () => {
+    const startedAt = usageEpoch.current;
     const [ls, cs, q, p, system] = await Promise.all([
       api<Lecture[]>("/lectures"),
       api<Course[]>("/courses"),
@@ -70,7 +88,8 @@ export default function App() {
       api<Preferences>("/settings"),
       api<{ provider_configured: boolean }>("/system/status"),
     ]);
-    setLectures(ls);
+    // A read started before a successful mark must not rewind that mark.
+    if (startedAt === usageEpoch.current) setLectures(ls);
     setCourses(cs);
     setQueue(q);
     setPreferences(p);
@@ -95,31 +114,104 @@ export default function App() {
       return;
     }
     let cancelled = false;
+    const params = new URLSearchParams({ q: query.trim() });
+    if (courseFilter === "unfiled") params.set("unfiled", "true");
+    else if (courseFilter) params.set("course_id", courseFilter);
+    if (tagFilter) params.set("tag", tagFilter);
+    if (hideUsed) params.set("unused_only", "true");
     const timer = setTimeout(
       () =>
-        void api<SearchResult[]>("/search?q=" + encodeURIComponent(query))
+        void api<SearchResult[]>("/search?" + params)
           .then((r) => {
-            if (!cancelled) setResults(r);
+            if (!cancelled) setResults({ key: searchKey, items: r });
           })
-          .catch((e) => onError(String(e))),
+          .catch((e) => {
+            if (!cancelled) {
+              setResults({ key: searchKey, items: [] });
+              onError(String(e));
+            }
+          }),
       250,
     );
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, onError]);
+  }, [query, courseFilter, tagFilter, hideUsed, searchKey, onError]);
+  async function toggleUsage(target: Lecture) {
+    if (pendingUsage.current.has(target.id)) return;
+    pendingUsage.current.add(target.id);
+    setSavingUsage(new Set(pendingUsage.current));
+    try {
+      const updated = await api<Lecture>(
+        "/lectures/" + target.id + "/usage",
+        "PATCH",
+        { is_used: !target.is_used },
+      );
+      usageEpoch.current++;
+      setLectures((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setSearchRevision((revision) => revision + 1);
+      void refresh().catch((e) => onError(String(e)));
+    } catch (e) {
+      onError(String(e));
+    } finally {
+      pendingUsage.current.delete(target.id);
+      setSavingUsage(new Set(pendingUsage.current));
+    }
+  }
   const lecture = lectures.find((l) => l.id === selected) ?? null;
   function open(id: string, next: Page = "library", at: number | null = null) {
     setSelected(id);
     setSeekMs(at);
     setPage(next);
   }
-  const visible = lectures.filter(
-    (l) =>
-      (!courseFilter || l.course_id === courseFilter) &&
-      (!tagFilter || l.tags.includes(tagFilter)),
+  const visible = useMemo(
+    () =>
+      lectures.filter(
+        (l) =>
+          (!courseFilter ||
+            (courseFilter === "unfiled"
+              ? l.course_id === null
+              : l.course_id === courseFilter)) &&
+          (!tagFilter || l.tags.includes(tagFilter)) &&
+          (!hideUsed || !l.is_used),
+      ),
+    [lectures, courseFilter, tagFilter, hideUsed],
   );
+  const visibleIds = new Set(visible.map((item) => item.id));
+  const matching =
+    results?.key === searchKey
+      ? results.items.filter((item) => visibleIds.has(item.lecture_id))
+      : [];
+  const hasFilters = Boolean(
+    courseFilter || tagFilter || hideUsed || query.trim(),
+  );
+  function clearFilters() {
+    setCourseFilter("");
+    setTagFilter("");
+    setHideUsed(false);
+    setQuery("");
+  }
+  useEffect(() => {
+    if (
+      page === "library" &&
+      loaded &&
+      selected &&
+      !visible.some((item) => item.id === selected)
+    )
+      setSelected(null);
+  }, [page, loaded, selected, visible]);
+  useEffect(() => {
+    if (
+      loaded &&
+      courseFilter &&
+      courseFilter !== "unfiled" &&
+      !courses.some((course) => course.id === courseFilter)
+    )
+      setCourseFilter("");
+  }, [loaded, courses, courseFilter]);
   const waiting = queue.jobs.filter((j) =>
     ["queued", "running", "unknown_outcome"].includes(j.state),
   ).length;
@@ -243,68 +335,139 @@ export default function App() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
-                <select
-                  aria-label="Filter course"
-                  value={courseFilter}
-                  onChange={(e) => setCourseFilter(e.target.value)}
-                >
-                  <option value="">All courses</option>
-                  {courses.map((c) => (
-                    <option value={c.id} key={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <select
+                <Select
                   aria-label="Filter tag"
                   value={tagFilter}
-                  onChange={(e) => setTagFilter(e.target.value)}
+                  onValueChange={setTagFilter}
                 >
                   <option value="">All tags</option>
                   {[...new Set(lectures.flatMap((l) => l.tags))].map((tag) => (
                     <option key={tag}>{tag}</option>
                   ))}
-                </select>
+                </Select>
+                <label className="check hide-used">
+                  <input
+                    type="checkbox"
+                    checked={hideUsed}
+                    onChange={(e) => setHideUsed(e.target.checked)}
+                  />
+                  Hide used
+                </label>
                 <button onClick={() => setCourseDialog("new")}>+ Course</button>
               </div>
-              <div className="course-strip">
+              <div
+                className="course-strip"
+                role="group"
+                aria-label="Filter by course"
+              >
+                <button
+                  className="course-filter"
+                  aria-pressed={!courseFilter}
+                  onClick={() => setCourseFilter("")}
+                >
+                  All courses{" "}
+                  <span className="course-count">{lectures.length}</span>
+                </button>
                 {courses.map((c) => (
-                  <button key={c.id} onClick={() => setCourseDialog(c)}>
-                    <bdi>{c.name}</bdi>
-                    <span> · {c.vocabulary.length} keyterms</span>
-                  </button>
-                ))}
-              </div>
-              {results !== null ? (
-                <div className="search-results">
-                  <p className="eyebrow">{results.length} MATCHING PASSAGES</p>
-                  {results.map((r, i) => (
+                  <div className="course-chip" key={c.id}>
                     <button
-                      key={i}
-                      onClick={() =>
-                        open(
-                          r.lecture_id,
-                          r.block_id ? "editor" : "library",
-                          r.start_ms,
-                        )
-                      }
+                      className="course-filter"
+                      aria-pressed={courseFilter === c.id}
+                      onClick={() => setCourseFilter(c.id)}
                     >
-                      <div>
-                        <strong>
-                          <bdi>{r.title}</bdi>
-                        </strong>
-                        <span>
-                          {r.course}{" "}
-                          {r.start_ms !== null && "· " + time(r.start_ms)}
-                        </span>
-                      </div>
-                      <p dir="auto">{r.snippet}</p>
+                      <bdi>{c.name}</bdi>
+                      <span className="course-count">
+                        {lectures.filter((l) => l.course_id === c.id).length}
+                      </span>
                     </button>
-                  ))}
-                  {!results.length && (
+                    <button
+                      className="course-edit"
+                      aria-label={`Edit course ${c.name}`}
+                      onClick={() => setCourseDialog(c)}
+                    >
+                      <Icon name="edit" />
+                    </button>
+                  </div>
+                ))}
+                {lectures.some((l) => l.course_id === null) && (
+                  <button
+                    className="course-filter"
+                    aria-pressed={courseFilter === "unfiled"}
+                    onClick={() => setCourseFilter("unfiled")}
+                  >
+                    Unfiled{" "}
+                    <span className="course-count">
+                      {lectures.filter((l) => l.course_id === null).length}
+                    </span>
+                  </button>
+                )}
+                {hasFilters && (
+                  <button
+                    className="clear-filters text-button"
+                    onClick={clearFilters}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+              {query.trim() ? (
+                <div className="search-results">
+                  {results?.key !== searchKey ? (
+                    <p role="status">Searching…</p>
+                  ) : (
+                    <p className="eyebrow">
+                      {matching.length} MATCHING PASSAGES
+                    </p>
+                  )}
+                  {matching.map((r, i) => {
+                    const target = lectures.find((l) => l.id === r.lecture_id)!;
+                    return (
+                      <LectureActions
+                        key={`${r.lecture_id}-${r.block_id}-${i}`}
+                        lecture={target}
+                        busy={savingUsage.has(target.id)}
+                        onToggle={(l) => void toggleUsage(l)}
+                        className={
+                          "search-result" + (target.is_used ? " is-used" : "")
+                        }
+                      >
+                        <button
+                          className="search-result-main"
+                          onClick={() =>
+                            open(
+                              r.lecture_id,
+                              r.block_id ? "editor" : "library",
+                              r.start_ms,
+                            )
+                          }
+                        >
+                          <div>
+                            <strong>
+                              <bdi>{r.title}</bdi>
+                              {target.is_used && (
+                                <span className="used-badge">
+                                  <Icon name="check" />
+                                  Used
+                                </span>
+                              )}
+                            </strong>
+                            <span>
+                              {r.course}{" "}
+                              {r.start_ms !== null && "· " + time(r.start_ms)}
+                            </span>
+                          </div>
+                          <p dir="auto">{r.snippet}</p>
+                        </button>
+                      </LectureActions>
+                    );
+                  })}
+                  {results?.key === searchKey && !matching.length && (
                     <p>
                       No matching passages. Arabic/Persian Yeh and Kaf variants
-                      are normalized for search.
+                      are normalized for search.{" "}
+                      <button className="text-button" onClick={clearFilters}>
+                        Clear filters
+                      </button>
                     </p>
                   )}
                 </div>
@@ -323,45 +486,73 @@ export default function App() {
                         <div className="empty-wave" aria-hidden="true">
                           ▂ ▅ ▃ ▇ ▆ ▂ ▄ ▆ ▃
                         </div>
-                        <h2>Your next lecture starts here</h2>
+                        <h2>
+                          {lectures.length
+                            ? "No matching lectures"
+                            : "Your next lecture starts here"}
+                        </h2>
                         <p>
-                          Import a recording, choose a course, and keep every
-                          word worth keeping.
+                          {lectures.length
+                            ? "Try another course or clear your filters to see more recordings."
+                            : "Import a recording, choose a course, and keep every word worth keeping."}
                         </p>
-                        <button onClick={() => setUploadDialog(true)}>
-                          Import your first lecture
+                        <button
+                          onClick={() =>
+                            lectures.length
+                              ? clearFilters()
+                              : setUploadDialog(true)
+                          }
+                        >
+                          {lectures.length
+                            ? "Clear filters"
+                            : "Import your first lecture"}
                         </button>
                       </div>
                     )}
                     {visible.map((l) => (
-                      <button
+                      <LectureActions
                         className={
-                          "lecture-row " + (selected === l.id ? "selected" : "")
+                          "lecture-row " +
+                          (selected === l.id ? "selected " : "") +
+                          (l.is_used ? "is-used" : "")
                         }
                         key={l.id}
-                        onClick={() => setSelected(l.id)}
+                        lecture={l}
+                        busy={savingUsage.has(l.id)}
+                        onToggle={(target) => void toggleUsage(target)}
                       >
-                        <span className="lecture-icon" aria-hidden="true">
-                          ≋
-                        </span>
-                        <span className="lecture-info">
-                          <strong dir="auto">{l.title}</strong>
-                          <span>
-                            <bdi>{l.course ?? "Unfiled"}</bdi> · {l.date}
-                            {l.duration_ms > 0 && " · " + time(l.duration_ms)}
+                        <button
+                          className="lecture-select"
+                          onClick={() => setSelected(l.id)}
+                        >
+                          <span className="lecture-icon" aria-hidden="true">
+                            ≋
                           </span>
-                          <span className="tag-list">
-                            {l.tags.map((tag) => (
-                              <bdi key={tag}>{tag}</bdi>
-                            ))}
+                          <span className="lecture-info">
+                            <strong dir="auto">{l.title}</strong>
+                            <span>
+                              <bdi>{l.course ?? "Unfiled"}</bdi> · {l.date}
+                              {l.duration_ms > 0 && " · " + time(l.duration_ms)}
+                            </span>
+                            <span className="tag-list">
+                              {l.is_used && (
+                                <span className="used-badge">
+                                  <Icon name="check" />
+                                  Used
+                                </span>
+                              )}
+                              {l.tags.map((tag) => (
+                                <bdi key={tag}>{tag}</bdi>
+                              ))}
+                            </span>
                           </span>
-                        </span>
-                        <span className="lecture-status">
-                          {l.transcript_id
-                            ? "Transcript available"
-                            : l.status.replaceAll("_", " ")}
-                        </span>
-                      </button>
+                          <span className="lecture-status">
+                            {l.transcript_id
+                              ? "Transcript available"
+                              : l.status.replaceAll("_", " ")}
+                          </span>
+                        </button>
+                      </LectureActions>
                     ))}
                   </div>
                   <aside className="lecture-detail">
@@ -545,6 +736,8 @@ export default function App() {
           }}
           onSaved={async (id) => {
             await refresh();
+            // A new recording should be visible even if old filters exclude it.
+            if (uploadDialog) clearFilters();
             setSelected(id);
             setUploadDialog(false);
             setEditLecture(null);

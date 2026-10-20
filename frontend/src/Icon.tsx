@@ -73,6 +73,27 @@ const paths = {
   ),
   loader: <path d="M21 12a9 9 0 1 1-9-9" />,
   close: <path d="m6 6 12 12M6 18 18 6" />,
+  chevronDown: <path d="m6 9 6 6 6-6" />,
+  chevronUp: <path d="m6 15 6-6 6 6" />,
+  check: <path d="m5 12 4 4L19 6" />,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="m15 4 5 5-11 11H4v-5ZM13 6l5 5" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5" />
+    </>
+  ),
+  undo: <path d="m8 4-5 5 5 5M3 9h11a6 6 0 0 1 0 12h-3" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof paths;

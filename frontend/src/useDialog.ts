@@ -18,9 +18,19 @@ export function useDialog<T extends HTMLElement>(
         root.querySelectorAll<HTMLElement>(
           'button:not(:disabled),input:not(:disabled),textarea:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]',
         ),
-      ).filter((e) => e.getClientRects().length > 0);
+      ).filter(
+        (e) =>
+          e.getClientRects().length > 0 &&
+          e.tabIndex >= 0 &&
+          !e.closest('[aria-hidden="true"], [inert]'),
+      );
     if (!root.contains(document.activeElement)) focusable()[0]?.focus();
     const key = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        document.querySelector("[data-lectra-popup]")
+      )
+        return;
       if (event.key === "Escape" && allowed.current) {
         event.preventDefault();
         closeRef.current();

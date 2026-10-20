@@ -81,6 +81,8 @@ locally; the worker reuses it and does not need a Docker Hub login.
 
 Playback supports speed, separately configurable forward/backward skips, passage looping, two-second rewind on resume, seekable timestamps, current-block highlighting, and auto-follow. Defaults are Space outside text input, Ctrl+Space while editing, Alt+arrows to skip, and `?` for help; Settings offers alternative shortcuts. Edited timed blocks retain a broad seek anchor and are labeled **edited**, without invented word timing.
 
+In the library, course chips filter recordings and search results together with tags and **Hide used**. The pencil beside a course opens its settings. Right-click a recording or use its **⋯** menu to **Mark as used** or **Mark as unused**; used recordings have a subtle visual mark and remain fully usable. Marks persist across reloads and retranscription and are included in backups. Filters reset on browser reload or after a new import so the imported lecture stays visible.
+
 ## Financial safety and recovery
 
 Each attempt records the audio hash, settings hash, chunk/source spans, timestamps, outcome, retry authorization, and cost estimate. Job settings, vocabulary, and pricing references are immutable snapshots. The usage ledger distinguishes estimates from actual billing; **actual vendor charges remain unconfirmed**.

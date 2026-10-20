@@ -337,16 +337,33 @@ def restore_revision(db, transcript_id, revision, base_revision):
     return get_transcript(db, transcript_id)
 
 
-def search(db, query):
+def search(db, query, *, course_id=None, unfiled=False, tag=None, unused_only=False):
     terms = shadow(query).split()
     if not terms:
         return []
     expression = " AND ".join('"' + term.replace('"', '""') + '"' for term in terms)
+    conditions = ["search_fts MATCH ?"]
+    args = [expression]
+    if course_id:
+        conditions.append("l.course_id=?")
+        args.append(course_id)
+    if unfiled:
+        conditions.append("l.course_id IS NULL")
+    if tag:
+        conditions.append(
+            "EXISTS(SELECT 1 FROM lecture_tags lt JOIN tags t ON t.id=lt.tag_id WHERE lt.lecture_id=l.id AND t.name=?)"
+        )
+        args.append(tag)
+    if unused_only:
+        conditions.append("l.is_used=0")
     matches = db.all(
-        "SELECT f.lecture_id,f.block_id,f.start_ms,coalesce(b.text,l.title) AS canonical_text,l.title,c.name AS course FROM search_fts f JOIN lectures l ON l.id=f.lecture_id LEFT JOIN courses c ON c.id=l.course_id LEFT JOIN transcript_blocks b ON b.id=f.block_id WHERE search_fts MATCH ? ORDER BY rank LIMIT 100",
-        (expression,),
+        "SELECT f.lecture_id,f.block_id,f.start_ms,coalesce(b.text,l.title) AS canonical_text,l.title,l.is_used,c.name AS course FROM search_fts f JOIN lectures l ON l.id=f.lecture_id LEFT JOIN courses c ON c.id=l.course_id LEFT JOIN transcript_blocks b ON b.id=f.block_id WHERE "
+        + " AND ".join(conditions)
+        + " ORDER BY rank LIMIT 100",
+        args,
     )
     for match in matches:
+        match["is_used"] = bool(match["is_used"])
         text = match.pop("canonical_text")
         normalized = shadow(text)
         offsets = [normalized.find(term) for term in terms if term in normalized]

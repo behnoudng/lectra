@@ -260,7 +260,7 @@ def test_migrations_repeat_and_foreign_keys(db):
         assert con.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert (
             con.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-            == "0002"
+            == "0003"
         )
 
 

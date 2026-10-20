@@ -1,3 +1,4 @@
+import { Select } from "./Select";
 import { useEffect, useState } from "react";
 import { api, bytes, money } from "./api";
 import type { Preferences, Snapshot, ProviderStatus } from "./types";
@@ -339,15 +340,15 @@ export function Settings({
           ).map(([key, label, choices]) => (
             <label key={key}>
               {label}
-              <select
+              <Select
                 aria-label={label}
                 value={(prefs.shortcuts ?? defaultShortcuts)[key]}
-                onChange={(e) =>
+                onValueChange={(value) =>
                   setPrefs({
                     ...prefs,
                     shortcuts: {
                       ...(prefs.shortcuts ?? defaultShortcuts),
-                      [key]: e.target.value,
+                      [key]: value,
                     } as Shortcuts,
                   })
                 }
@@ -355,7 +356,7 @@ export function Settings({
                 {choices.map((choice) => (
                   <option key={choice}>{choice}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           ))}
         </div>

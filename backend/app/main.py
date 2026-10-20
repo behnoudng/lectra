@@ -17,6 +17,7 @@ from .contracts import (
     VocabularyInput,
     TagInput,
     LectureInput,
+    LectureUsageInput,
     EDLInput,
     Preprocessing,
     JobInput,
@@ -387,6 +388,10 @@ def create_app(cfg: Config | None = None):
     def update_lecture(lecture_id: str, data: LectureInput):
         return library.update_lecture(lecture_id, data)
 
+    @app.patch("/api/v1/lectures/{lecture_id}/usage")
+    def update_usage(lecture_id: str, data: LectureUsageInput):
+        return library.set_usage(lecture_id, data.is_used)
+
     @app.post("/api/v1/lectures/{lecture_id}/audio")
     async def upload(lecture_id: str, file: UploadFile = File(...)):
         library.lecture(lecture_id)
@@ -616,8 +621,23 @@ def create_app(cfg: Config | None = None):
         }
 
     @app.get("/api/v1/search")
-    def search(q: str = Query(max_length=500)):
-        return transcripts.search(db, q)
+    def search(
+        q: str = Query(max_length=500),
+        course_id: str | None = None,
+        unfiled: bool = False,
+        tag: str | None = None,
+        unused_only: bool = False,
+    ):
+        if course_id and unfiled:
+            raise AppError("validation", "Choose a course or Unfiled, not both.")
+        return transcripts.search(
+            db,
+            q,
+            course_id=course_id,
+            unfiled=unfiled,
+            tag=tag,
+            unused_only=unused_only,
+        )
 
     @app.get("/api/v1/lectures/{lecture_id}/export")
     def export(

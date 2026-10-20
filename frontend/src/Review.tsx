@@ -1,3 +1,4 @@
+import { Select } from "./Select";
 import { useEffect, useState } from "react";
 import { api, time, money } from "./api";
 import { NumberField } from "./NumberField";
@@ -153,28 +154,28 @@ export function Review({
             </label>
             <label>
               Language
-              <select
+              <Select
                 value={options.language_code ?? ""}
-                onChange={(e) =>
+                onValueChange={(value) =>
                   setOptions({
                     ...options,
-                    language_code: e.target.value || null,
+                    language_code: value || null,
                   })
                 }
               >
                 <option value="">Auto-detect</option>
                 <option value="fas">Persian</option>
                 <option value="eng">English</option>
-              </select>
+              </Select>
             </label>
             <label>
               Processing
-              <select
+              <Select
                 value={options.mode}
-                onChange={(e) =>
+                onValueChange={(value) =>
                   setOptions({
                     ...options,
-                    mode: e.target.value as Options["mode"],
+                    mode: value as Options["mode"],
                   })
                 }
               >
@@ -182,7 +183,7 @@ export function Review({
                   Checkpointed chunks (recommended)
                 </option>
                 <option value="whole">Whole file (advanced)</option>
-              </select>
+              </Select>
             </label>
             <NumberField
               label="Target chunk duration (minutes)"
@@ -198,21 +199,21 @@ export function Review({
             />
             <label>
               Transcription audio
-              <select
+              <Select
                 value={options.preprocessing.enabled ? "enhanced" : "clean"}
-                onChange={(e) =>
+                onValueChange={(value) =>
                   setOptions({
                     ...options,
                     preprocessing: {
                       ...options.preprocessing,
-                      enabled: e.target.value === "enhanced",
+                      enabled: value === "enhanced",
                     },
                   })
                 }
               >
                 <option value="clean">Clean edited audio</option>
                 <option value="enhanced">Enhanced edited audio</option>
-              </select>
+              </Select>
             </label>
           </div>
           <label className="check">

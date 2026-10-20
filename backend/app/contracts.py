@@ -65,6 +65,10 @@ class LectureInput(Contract):
     tags: list[str] = Field(default_factory=list, max_length=50)
 
 
+class LectureUsageInput(Contract):
+    is_used: bool = Field(strict=True)
+
+
 class Span(Contract):
     start_ms: int = Field(ge=0)
     end_ms: int = Field(gt=0)

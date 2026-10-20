@@ -1,3 +1,4 @@
+import { Select } from "./Select";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   FORMAT_TEXT_COMMAND,
@@ -337,11 +338,18 @@ export function TranscriptEditor({
   }, [preferences.rewind_on_resume, onError]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.isComposing || e.metaKey) return;
+      if (
+        e.defaultPrevented ||
+        e.isComposing ||
+        e.metaKey ||
+        documentGlobal.querySelector("[data-lectra-popup]")
+      )
+        return;
       const target = e.target as HTMLElement;
       const editing =
         target.isContentEditable ||
-        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
+        Boolean(target.closest('[role="combobox"]'));
       const binding =
         (e.ctrlKey ? "Ctrl+" : "") +
         (e.altKey ? "Alt+" : "") +
@@ -521,14 +529,14 @@ export function TranscriptEditor({
           {draftChoices.length > 1 && (
             <label>
               Choose a browser draft
-              <select
+              <Select
                 value={draftChoices.findIndex(
                   (draft) =>
                     draft.owner === recovery?.owner &&
                     draft.at === recovery?.at,
                 )}
-                onChange={(e) =>
-                  setRecovery(draftChoices[Number(e.target.value)])
+                onValueChange={(value) =>
+                  setRecovery(draftChoices[Number(value)])
                 }
               >
                 {draftChoices.map((draft, i) => (
@@ -540,7 +548,7 @@ export function TranscriptEditor({
                       .slice(0, 70)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           )}
         </div>
@@ -681,10 +689,10 @@ export function TranscriptEditor({
             </bdi>
             <label>
               Speed
-              <select
+              <Select
                 value={speed}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
+                onValueChange={(value) => {
+                  const v = Number(value);
                   setSpeed(v);
                   if (audio.current) audio.current.playbackRate = v;
                 }}
@@ -694,7 +702,7 @@ export function TranscriptEditor({
                     {v}×
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label className="check">
               <input
@@ -832,22 +840,20 @@ export function TranscriptEditor({
             <div className="block-tools">
               <label>
                 Text direction
-                <select
+                <Select
                   aria-label="Text direction"
                   value={block.direction_override ?? "auto"}
-                  onChange={(e) =>
+                  onValueChange={(value) =>
                     update(block.id, {
                       direction_override:
-                        e.target.value === "auto"
-                          ? null
-                          : (e.target.value as "rtl" | "ltr"),
+                        value === "auto" ? null : (value as "rtl" | "ltr"),
                     })
                   }
                 >
                   <option value="auto">Auto</option>
                   <option value="rtl">RTL</option>
                   <option value="ltr">LTR</option>
-                </select>
+                </Select>
               </label>
               <button
                 onClick={() => {

@@ -6,6 +6,7 @@ import {
 } from "@playwright/test";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
+import { chooseOption } from "./select";
 const fixture = path.resolve("../test/fixtures/lecture.wav");
 const mixed =
   "خب، logical equivalence: اگر P → Q، آنگاه ¬P ∨ Q. مسیر /tmp/a (CS101) ۱۲۳ می‌خوایم";
@@ -16,9 +17,11 @@ async function importLecture(page: Page, title: string, course?: string) {
     .click();
   await page.getByLabel("Lecture title", { exact: true }).fill(title);
   if (course)
-    await page
-      .getByRole("combobox", { name: "Course", exact: true })
-      .selectOption({ label: course });
+    await chooseOption(
+      page,
+      page.getByRole("combobox", { name: "Course", exact: true }),
+      course,
+    );
   await page.getByLabel("Lecture recording").setInputFiles(fixture);
   await page
     .getByRole("button", { name: "Import recording", exact: true })
@@ -104,10 +107,11 @@ test("complete upload, cuts, preflight, transcription, edits, search, export, ba
   await expect(page.locator(".save-status")).toContainText("Saved");
   await page.getByRole("button", { name: "Document", exact: true }).click();
   await expect(passage).toHaveText(mixed);
-  await page
-    .getByLabel("Text direction", { exact: true })
-    .first()
-    .selectOption("rtl");
+  await chooseOption(
+    page,
+    page.getByLabel("Text direction", { exact: true }).first(),
+    "RTL",
+  );
   await expect(page.locator(".save-status")).toContainText("Saved");
   await page.getByRole("button", { name: "Audio-synced" }).click();
   await expect(page.locator(".alignment").first()).toHaveText(
@@ -127,8 +131,8 @@ test("complete upload, cuts, preflight, transcription, edits, search, export, ba
   expect(await exported.text()).toContain(mixed);
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByLabel("Search lectures and transcripts").fill("logical");
-  await expect(page.locator(".search-results>button").first()).toBeVisible();
-  await page.locator(".search-results>button").first().click();
+  await expect(page.locator(".search-result-main").first()).toBeVisible();
+  await page.locator(".search-result-main").first().click();
   await expect(passage).toHaveText(mixed);
   await page.getByRole("button", { name: "Backups", exact: true }).click();
   await page.getByRole("button", { name: "Back up now" }).click();
@@ -171,10 +175,23 @@ test("course defaults, vocabulary, theme and responsive navigation", async ({
   await page
     .getByLabel("Reusable vocabulary, one term per line")
     .fill("logical equivalence\nهم‌ارزی");
-  await page.getByLabel("Default language").selectOption("fas");
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "Default language", exact: true }),
+    "Persian",
+  );
   await page.getByRole("button", { name: "Save course", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(page.locator(".course-strip")).toContainText("2 keyterms");
+  await page
+    .getByRole("button", {
+      name: "Edit course Computational logic",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByLabel("Reusable vocabulary, one term per line"),
+  ).toHaveValue("logical equivalence\nهم‌ارزی");
+  await page.getByRole("button", { name: "Close dialog", exact: true }).click();
   await importLecture(page, "Preset review", "Computational logic");
   await page
     .getByRole("button", { name: "Prepare audio →", exact: true })
@@ -182,7 +199,7 @@ test("course defaults, vocabulary, theme and responsive navigation", async ({
   await page.getByRole("button", { name: "Review transcription →" }).click();
   await expect(
     page.getByRole("combobox", { name: "Language", exact: true }),
-  ).toHaveValue("fas");
+  ).toHaveText("Persian");
   await expect(page.getByLabel("Keyterms, one per line")).toContainText(
     "logical equivalence",
   );
@@ -548,11 +565,7 @@ test("two unsaved tabs retain independent recoverable drafts", async ({
   await recovered.goto("/");
   await openEditor(recovered, title);
   const choices = recovered.getByLabel("Choose a browser draft");
-  const value = await choices
-    .locator("option")
-    .filter({ hasText: "Independent tab one draft" })
-    .getAttribute("value");
-  await choices.selectOption(value!);
+  await chooseOption(recovered, choices, /Independent tab one draft/);
   await recovered.getByRole("button", { name: "Recover local draft" }).click();
   await expect(recovered.locator(".save-status")).toContainText("Saved");
   await expect(
@@ -671,18 +684,26 @@ test("configured shortcuts and independent skip distances work", async ({
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByLabel("Skip backward (seconds)", { exact: true }).fill("1");
   await page.getByLabel("Skip forward (seconds)", { exact: true }).fill("2");
-  await page
-    .getByLabel("Play / pause shortcut", { exact: true })
-    .selectOption("Alt+P");
-  await page
-    .getByLabel("Skip backward shortcut", { exact: true })
-    .selectOption("Alt+J");
-  await page
-    .getByLabel("Skip forward shortcut", { exact: true })
-    .selectOption("Alt+L");
-  await page
-    .getByLabel("Shortcut help key", { exact: true })
-    .selectOption("Alt+H");
+  await chooseOption(
+    page,
+    page.getByLabel("Play / pause shortcut", { exact: true }),
+    "Alt+P",
+  );
+  await chooseOption(
+    page,
+    page.getByLabel("Skip backward shortcut", { exact: true }),
+    "Alt+J",
+  );
+  await chooseOption(
+    page,
+    page.getByLabel("Skip forward shortcut", { exact: true }),
+    "Alt+L",
+  );
+  await chooseOption(
+    page,
+    page.getByLabel("Shortcut help key", { exact: true }),
+    "Alt+H",
+  );
   await page
     .getByRole("button", { name: "Save preferences", exact: true })
     .click();
