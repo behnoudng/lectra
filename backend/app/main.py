@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 import json
 import os
 import sqlite3
+import re
 from fastapi import FastAPI, UploadFile, File, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -19,6 +20,7 @@ from .contracts import (
     LectureInput,
     LectureUsageInput,
     EDLInput,
+    AudioExportInput,
     Preprocessing,
     JobInput,
     RetryInput,
@@ -434,15 +436,39 @@ def create_app(cfg: Config | None = None):
         return library.delete_original(lecture_id)
 
     @app.get("/api/v1/media/{asset_id}")
-    def stream(asset_id: str):
+    def stream(asset_id: str, download: bool = False):
         asset = db.one(
             "SELECT * FROM media_assets WHERE id=? AND deleted_at IS NULL", (asset_id,)
         )
         return LockedFileResponse(
             safe_path(cfg.data, asset["path"]),
             media_type=asset["mime"],
+            filename=(
+                re.sub(
+                    r"[^\w .()-]", "_", library.lecture(asset["lecture_id"])["title"]
+                ).strip(". ")[:120]
+                + "-edited.mp3"
+                if download and asset["mime"] == "audio/mpeg"
+                else None
+            ),
             runtime_lock=cfg.data / "runtime.lock",
         )
+
+    @app.post("/api/v1/lectures/{lecture_id}/audio-export")
+    def audio_export(lecture_id: str, data: AudioExportInput):
+        library.lecture(lecture_id)
+        source = db.one(
+            "SELECT * FROM media_assets WHERE lecture_id=? AND kind IN ('original','proxy') AND deleted_at IS NULL ORDER BY CASE kind WHEN 'original' THEN 0 ELSE 1 END LIMIT 1",
+            (lecture_id,),
+        )
+        spans = media.validate_edl(
+            [s.model_dump() for s in data.spans], source["duration_ms"]
+        )
+        asset_id = media.preview(db, lecture_id, spans, data.preprocessing.model_dump())
+        return {
+            "id": asset_id,
+            "download_url": f"/api/v1/media/{asset_id}?download=true",
+        }
 
     @app.get("/api/v1/media/{asset_id}/peaks")
     def waveform(asset_id: str):

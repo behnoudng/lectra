@@ -39,7 +39,7 @@ def rejection_help(status, code=None):
     }:
         return "Check key expiration and whether the key is enabled. Correct ELEVENLABS_API_KEY in the project .env, then recreate both API and worker containers."
     if code in {"model_not_found", "invalid_model_id", "model_not_supported"}:
-        return "The request uses Scribe v2 (scribe_v2). Check whether this workspace has access to that model."
+        return "Check whether this workspace has access to the selected Scribe model."
     if status in (401, 403):
         return "Check Speech to Text → Access, key expiration, IP restrictions, and key/workspace credit limits. The optional User permission does not authorize transcription."
     if status == 429:

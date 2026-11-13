@@ -150,7 +150,19 @@ export function Review({
             </label>
             <label>
               Model
-              <input readOnly value="Scribe v2" />
+              <Select
+                aria-label="Model"
+                value={options.model_id}
+                onValueChange={(model_id) =>
+                  setOptions({
+                    ...options,
+                    model_id: model_id as Options["model_id"],
+                  })
+                }
+              >
+                <option value="scribe_v2">Scribe v2</option>
+                <option value="scribe_v3">Scribe v3</option>
+              </Select>
             </label>
             <label>
               Language

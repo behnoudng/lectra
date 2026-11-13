@@ -1,6 +1,6 @@
 # Lectra
 
-A local multi-language lecture transcription workstation. Import long recordings, make nondestructive cuts, review paid transcription settings, and correct a canonical transcript in audio-synced or document view. Preparation, editing, search, export, and backups run locally. Transcription sends audio to **ElevenLabs Scribe v2**.
+A local multi-language lecture transcription workstation. Import long recordings, make nondestructive cuts, review paid transcription settings, and correct a canonical transcript in audio-synced or document view. Preparation, editing, search, export, and backups run locally. Transcription sends audio to **ElevenLabs Scribe v2 or v3**.
 
 ## Run on Linux
 
@@ -70,6 +70,10 @@ An exported shell variable takes precedence over `.env`; unset an empty shell
 locally; the worker reuses it and does not need a Docker Hub login.
 
 ## First lecture
+
+Transcription review offers **Scribe v2** (the default) and **Scribe v3** (`scribe_v3`, documented in the current official ElevenLabs SDK). You can also save the model in course defaults. Jobs, retries and usage records retain their selected model. Pricing versions are model-specific; configure a separate Scribe v3 rate in Settings to see its cost estimate.
+
+Audio Preparation offers **Download edited MP3** for all retained audio and **Download selection MP3** for retained audio inside the active selection. Downloads apply the current cuts and effects, including unsaved edits, without changing the original or authorizing transcription. Removed sections are excluded from both exports.
 
 1. Create a course and enter reusable vocabulary/defaults, if useful.
 2. Import an audio or video recording with title, date, and tags. Uploads spool/stream, are hashed and probed, and produce a playback proxy and bounded waveform peaks.

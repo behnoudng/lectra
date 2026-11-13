@@ -76,6 +76,9 @@ export function AudioPreparation({
   const [jump, setJump] = useState("");
   const [busy, setBusy] = useState(false);
   const [previewBuilding, setPreviewBuilding] = useState(false);
+  const [exporting, setExporting] = useState<"edited" | "selection" | null>(
+    null,
+  );
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const [saved, setSaved] = useState(true);
@@ -116,6 +119,13 @@ export function AudioPreparation({
     value !== null && value >= 0 && value <= sourceDuration;
   const validSelection = inBounds(start) && inBounds(end) && end > start;
   const range = validSelection ? { start_ms: start, end_ms: end } : null;
+  const selectedSpans = range
+    ? spans.flatMap((span) => {
+        const start_ms = Math.max(span.start_ms, range.start_ms);
+        const end_ms = Math.min(span.end_ms, range.end_ms);
+        return start_ms < end_ms ? [{ start_ms, end_ms }] : [];
+      })
+    : [];
   const cuts = removedRanges(spans, sourceDuration);
   const duration = spans.reduce((sum, s) => sum + s.end_ms - s.start_ms, 0);
   const editedAt = editedPosition(spans, position);
@@ -639,6 +649,30 @@ export function AudioPreparation({
       throw error;
     } finally {
       setBusy(false);
+    }
+  }
+  async function downloadAudio(selectionOnly: boolean) {
+    setExporting(selectionOnly ? "selection" : "edited");
+    try {
+      const result = await api<{ download_url: string }>(
+        "/lectures/" + lecture.id + "/audio-export",
+        "POST",
+        {
+          spans: selectionOnly ? selectedSpans : spans,
+          preprocessing: processing,
+        },
+      );
+      const link = document.createElement("a");
+      link.href = result.download_url;
+      link.download = "";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setAnnouncement("Your MP3 is ready. The download has started.");
+    } catch (error) {
+      onError("MP3 export failed. " + String(error));
+    } finally {
+      setExporting(null);
     }
   }
   async function buildPreview() {
@@ -1318,6 +1352,22 @@ export function AudioPreparation({
           Save preparation
         </button>
         <button
+          disabled={busy || !!exporting || !spans.length}
+          onClick={() => void downloadAudio(false)}
+        >
+          {exporting === "edited" && <Icon name="loader" />}
+          {exporting === "edited" ? "Preparing MP3…" : "Download edited MP3"}
+        </button>
+        <button
+          disabled={busy || !!exporting || !selectedSpans.length}
+          onClick={() => void downloadAudio(true)}
+        >
+          {exporting === "selection" && <Icon name="loader" />}
+          {exporting === "selection"
+            ? "Preparing selection MP3…"
+            : "Download selection MP3"}
+        </button>
+        <button
           className="primary"
           disabled={busy}
           onClick={() =>
@@ -1329,6 +1379,10 @@ export function AudioPreparation({
           Review transcription →
         </button>
       </div>
+      <p className="hint">
+        MP3 downloads include the current cuts and audio effects. Selection
+        downloads keep only retained audio inside the selected range.
+      </p>
     </section>
   );
 }

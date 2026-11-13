@@ -5,7 +5,9 @@ export type Preprocessing = {
   denoise: boolean;
   loudness: boolean;
 };
+export type ModelId = "scribe_v2" | "scribe_v3";
 export type Options = {
+  model_id: ModelId;
   language_code: string | null;
   diarize: boolean;
   num_speakers: number | null;
@@ -17,6 +19,7 @@ export type Options = {
   target_ms: number;
 };
 export const defaults: Options = {
+  model_id: "scribe_v2",
   language_code: null,
   diarize: false,
   num_speakers: null,

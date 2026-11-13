@@ -86,7 +86,10 @@ export function QueueView({
                   <h2>{job.title}</h2>
                 </button>
                 <p>
-                  {job.state.replaceAll("_", " ")} · {time(job.duration_ms)} ·{" "}
+                  {job.settings.model_id === "scribe_v3"
+                    ? "Scribe v3"
+                    : "Scribe v2"}{" "}
+                  · {job.state.replaceAll("_", " ")} · {time(job.duration_ms)} ·{" "}
                   {job.chunks.filter((c) => c.state === "succeeded").length}/
                   {job.chunks.length} chunks complete
                 </p>

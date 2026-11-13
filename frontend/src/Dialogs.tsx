@@ -249,7 +249,10 @@ export function CourseDialog({
 }) {
   const [name, setName] = useState(course?.name ?? "");
   const [vocab, setVocab] = useState(course?.vocabulary.join("\n") ?? "");
-  const [preset, setPreset] = useState<Options>(course?.preset ?? defaults);
+  const [preset, setPreset] = useState<Options>({
+    ...defaults,
+    ...course?.preset,
+  });
   const [busy, setBusy] = useState(false);
   const dialog = useDialog<HTMLFormElement>(onClose, !busy);
   const [localError, setLocalError] = useState("");
@@ -312,6 +315,22 @@ export function CourseDialog({
             value={vocab}
             onChange={(e) => setVocab(e.target.value)}
           />
+        </label>
+        <label>
+          Default model
+          <Select
+            aria-label="Default model"
+            value={preset.model_id}
+            onValueChange={(model_id) =>
+              setPreset({
+                ...preset,
+                model_id: model_id as Options["model_id"],
+              })
+            }
+          >
+            <option value="scribe_v2">Scribe v2</option>
+            <option value="scribe_v3">Scribe v3</option>
+          </Select>
         </label>
         <label>
           Default language

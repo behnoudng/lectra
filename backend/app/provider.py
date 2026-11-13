@@ -131,7 +131,7 @@ class ElevenLabs:
                 409,
             )
         data = {
-            "model_id": "scribe_v2",
+            "model_id": opts.model_id,
             "timestamps_granularity": "word",
             "diarize": str(opts.diarize).lower(),
             "tag_audio_events": str(opts.tag_audio_events).lower(),

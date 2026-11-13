@@ -157,6 +157,7 @@ export function Settings({
   const [budget, setBudget] = useState<Budget | null>(null);
   const [monthly, setMonthly] = useState("");
   const [rate, setRate] = useState("");
+  const [pricingModel, setPricingModel] = useState("scribe_v2");
   const [currency, setCurrency] = useState("USD");
   const [surcharge, setSurcharge] = useState(20);
   const [source, setSource] = useState("");
@@ -211,7 +212,7 @@ export function Settings({
         </div>
       </div>
       <section>
-        <h2>ElevenLabs Scribe v2</h2>
+        <h2>ElevenLabs transcription</h2>
         <div className="provider-checks">
           <div>
             <span>Credential loaded</span>
@@ -437,6 +438,17 @@ export function Settings({
       </section>
       <section>
         <h2>Versioned pricing</h2>
+        <label>
+          Pricing model
+          <Select
+            aria-label="Pricing model"
+            value={pricingModel}
+            onValueChange={setPricingModel}
+          >
+            <option value="scribe_v2">Scribe v2</option>
+            <option value="scribe_v3">Scribe v3</option>
+          </Select>
+        </label>
         <p className="hint">
           No base rate is assumed. Enter your current account’s rate and source.
           Historical jobs retain their pricing version.
@@ -474,6 +486,7 @@ export function Settings({
           onClick={() =>
             void action(() =>
               api("/pricing", "POST", {
+                model_id: pricingModel,
                 effective_from: new Date().toISOString(),
                 currency,
                 base_micros_per_hour: Math.round(Number(rate) * 1e6),

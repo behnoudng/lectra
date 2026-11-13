@@ -15,6 +15,7 @@ class Preprocessing(Contract):
 
 
 class TranscriptionSettings(Contract):
+    model_id: Literal["scribe_v2", "scribe_v3"] = "scribe_v2"
     language_code: str | None = Field(default=None, pattern=r"^[a-z]{2,3}$")
     diarize: bool = False
     num_speakers: int | None = Field(default=None, ge=1, le=32)
@@ -76,6 +77,10 @@ class Span(Contract):
 
 class EDLInput(Contract):
     spans: list[Span] = Field(min_length=1, max_length=300)
+
+
+class AudioExportInput(EDLInput):
+    preprocessing: Preprocessing = Field(default_factory=Preprocessing)
 
 
 class JobInput(Contract):
@@ -147,6 +152,7 @@ class Budget(Contract):
 
 
 class PriceInput(Contract):
+    model_id: Literal["scribe_v2", "scribe_v3"] = "scribe_v2"
     effective_from: str
     currency: str = Field(pattern=r"^[A-Z]{3}$")
     base_micros_per_hour: int = Field(ge=0)

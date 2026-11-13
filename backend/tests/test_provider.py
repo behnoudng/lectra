@@ -26,14 +26,26 @@ def test_observed_posts_not_repeated(db, job, vendor, mode, outcome):
     assert state["posts"] == 1
 
 
-def test_real_multipart_adapter_and_account_safety(db, job, vendor, monkeypatch):
+@pytest.mark.parametrize("model_id", ["scribe_v2", "scribe_v3"])
+def test_real_multipart_adapter_and_account_safety(
+    db, lecture, vendor, monkeypatch, model_id
+):
+    from app.contracts import JobInput
+
+    job = QueueService(db).enqueue(
+        JobInput(
+            lecture_id=lecture["id"],
+            settings=TranscriptionSettings(model_id=model_id, target_ms=1000),
+            confirmed=True,
+        )
+    )
     state, provider = vendor
     worker = Worker(db, provider)
     for _ in range(10):
         worker.step()
     assert state["posts"] == len(job["chunks"]) and state["max_active"] == 1
     assert (
-        b"scribe_v2" in state["bodies"][0]
+        model_id.encode() in state["bodies"][0]
         and b"timestamps_granularity" in state["bodies"][0]
     )
     assert provider.account()["status"] == "Connected"
@@ -43,6 +55,9 @@ def test_real_multipart_adapter_and_account_safety(db, job, vendor, monkeypatch)
     monkeypatch.delenv("ELEVENLABS_API_KEY")
     assert provider.account()["status"] == "Not configured"
     assert state["posts"] == len(job["chunks"])
+    assert {row["model"] for row in db.all("SELECT model FROM usage_ledger")} == {
+        model_id
+    }
 
 
 def test_keyterm_contract():

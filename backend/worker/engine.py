@@ -319,7 +319,7 @@ class Worker:
                     job["id"],
                     chunk["id"],
                     "elevenlabs",
-                    "scribe_v2",
+                    settings.get("model_id", "scribe_v2"),
                     "/v1/speech-to-text",
                     request_hash,
                     chunk["end_ms"] - chunk["start_ms"],

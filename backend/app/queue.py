@@ -14,7 +14,7 @@ class QueueService:
     def __init__(self, db):
         self.db = db
 
-    def review_context(self, con, lecture_id):
+    def review_context(self, con, lecture_id, model_id="scribe_v2"):
         lecture = con.execute(
             "SELECT l.id,l.title,l.date,l.course_id,l.edl,c.name AS course FROM lectures l LEFT JOIN courses c ON c.id=l.course_id WHERE l.id=?",
             (lecture_id,),
@@ -28,8 +28,8 @@ class QueueService:
                 "local_media", "An available original recording is required.", 409
             )
         rule = con.execute(
-            "SELECT * FROM pricing_rules WHERE active=1 AND provider='elevenlabs' AND model='scribe_v2' AND effective_from<=? ORDER BY effective_from DESC,id DESC LIMIT 1",
-            (now(),),
+            "SELECT * FROM pricing_rules WHERE active=1 AND provider='elevenlabs' AND model=? AND effective_from<=? ORDER BY effective_from DESC,id DESC LIMIT 1",
+            (model_id, now()),
         ).fetchone()
         return {
             "lecture": dict(lecture),
@@ -39,7 +39,7 @@ class QueueService:
 
     def estimate(self, data: JobInput):
         with self.db.read() as con:
-            context = self.review_context(con, data.lecture_id)
+            context = self.review_context(con, data.lecture_id, data.settings.model_id)
         lecture, asset = context["lecture"], context["original"]
         spans = media.validate_edl(json.loads(lecture["edl"]), asset["duration_ms"])
         opts = data.settings.model_dump()
@@ -89,7 +89,7 @@ class QueueService:
                 )
         estimate = {
             "provider": "elevenlabs",
-            "model": "scribe_v2",
+            "model": opts["model_id"],
             "duration_ms": duration,
             "requests": len(plan),
             "plan": [{"start_ms": s, "end_ms": e} for s, e in plan],
@@ -134,7 +134,10 @@ class QueueService:
             )
         job_id = uid()
         with self.db.tx() as con:
-            if self.review_context(con, data.lecture_id) != estimate["review_context"]:
+            if (
+                self.review_context(con, data.lecture_id, data.settings.model_id)
+                != estimate["review_context"]
+            ):
                 raise AppError(
                     "preflight_changed",
                     "The lecture changed while enqueueing. Refresh and review it again.",

@@ -3,10 +3,10 @@ from .db import now
 from .storage import uid, canonical
 
 
-def rule_for(db):
+def rule_for(db, model_id="scribe_v2"):
     return db.one(
-        "SELECT * FROM pricing_rules WHERE active=1 AND provider='elevenlabs' AND model='scribe_v2' AND effective_from<=? ORDER BY effective_from DESC,id DESC LIMIT 1",
-        (now(),),
+        "SELECT * FROM pricing_rules WHERE active=1 AND provider='elevenlabs' AND model=? AND effective_from<=? ORDER BY effective_from DESC,id DESC LIMIT 1",
+        (model_id, now()),
         required=False,
     )
 
@@ -58,7 +58,7 @@ def save_rule(db, price):
             (
                 rule_id,
                 "elevenlabs",
-                "scribe_v2",
+                price.model_id,
                 price.effective_from,
                 price.currency,
                 price.base_micros_per_hour,
